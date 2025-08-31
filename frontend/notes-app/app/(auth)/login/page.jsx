@@ -1,15 +1,20 @@
 "use client";
 import React, { useState } from "react";
+import { useRouter } from "next/navigation"; // Import useRouter
 import Navbar from "@/app/components/Navbar";
 
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const router = useRouter(); // Initialize router
 
   const handleSubmit = (e) => {
     e.preventDefault();
     // TODO: handle login logic
     console.log("Email:", email, "Password:", password);
+
+    // Navigate to dashboard
+    router.push("/dashboard");
   };
 
   return (
