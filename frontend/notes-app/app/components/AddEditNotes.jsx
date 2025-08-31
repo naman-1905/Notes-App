@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MdClose } from "react-icons/md";
+import { MdClose, MdEditNote } from "react-icons/md";
 import TagInput from "./TagInput";
 
 function AddEditNotes({ noteData, type, onClose, onSubmit }) {
@@ -8,32 +8,39 @@ function AddEditNotes({ noteData, type, onClose, onSubmit }) {
   const [tags, setTags] = useState(noteData?.tags || []);
   const [error, setError] = useState(null);
 
+  // Add New Note
+  const addNewNote = async () => {};
+
+  //Edit Note
+    const editNote = async () => {};
+
   const handleSaveNote = () => {
-    if (!title) {
-      setError("Please enter the title");
-      return;
-    }
+  if (!title) {
+    setError("Please enter the title");
+    return;
+  }
 
-    if (!content) {
-      setError("Content field cannot be empty");
-      return;
-    }
+  if (!content) {
+    setError("Content field cannot be empty");
+    return;
+  }
 
-    setError("");
+  setError("");
 
-    const newNote = {
-      ...noteData, // keeps existing fields like id if editing
-      title,
-      content,
-      tags,
-    };
-
-    if (onSubmit) {
-      onSubmit(newNote);
-    }
-
-    onClose(); // close modal after saving
+  const newNote = {
+    ...noteData, // keeps id if editing
+    title,
+    content,
+    tags,
   };
+
+  if (onSubmit) {
+    onSubmit(newNote, type); // parent decides what to do
+  }
+
+  onClose();
+};
+
 
   return (
     <div className="relative">
