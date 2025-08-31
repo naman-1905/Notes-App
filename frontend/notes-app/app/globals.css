@@ -15,8 +15,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #ffffff;
+    --foreground: #d4d4d4;
   }
 }
 
@@ -26,3 +26,5 @@ body {
   /* ✅ fallback chain keeps Nunito as main */
   font-family: var(--font-nunito), Arial, Helvetica, sans-serif;
 }
+
+
