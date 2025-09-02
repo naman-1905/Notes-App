@@ -1,11 +1,5 @@
-import React from 'react'
+import { redirect } from 'next/navigation'
 
-function App() {
-  return (
-    <div>
-      
-    </div>
-  )
+export default function App() {
+  redirect('/login')
 }
-
-export default App
