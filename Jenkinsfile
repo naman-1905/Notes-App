@@ -2,13 +2,18 @@ pipeline {
   agent any
 
   environment {
-    REGISTRY        = "10.243.4.236:5000"                   // change if needed
+    REGISTRY        = "10.243.4.236:5000"
     TAG             = "latest"
-    DOCKER_HOST     = "tcp://10.243.52.185:2375"            // remote docker host
+    DOCKER_HOST     = "tcp://10.243.52.185:2375"
     APP_NETWORK     = "app"
 
     FRONTEND_IMAGE  = "halfskirmish_notes_frontend"
     BACKEND_IMAGE   = "halfskirmish_notes_backend"
+    
+    // Deployment names following the pattern
+    FRONTEND_DEPLOYMENT = "halfskirmish-notes-frontend"
+    BACKEND_DEPLOYMENT  = "halfskirmish-notes-backend"
+    CLOUDFLARED_DEPLOYMENT = "halfskirmish-notes-cloudflared"
 
     FRONTEND_BUILD_CONTEXT = "frontend/notes-app"
     BACKEND_BUILD_CONTEXT  = "backend"
@@ -28,7 +33,7 @@ pipeline {
           // Build frontend and pass build arg so NEXT_PUBLIC_BASE_URL embeds backend address
           sh """
             docker build -t ${FRONTEND_IMAGE}:${TAG} \\
-              --build-arg NEXT_PUBLIC_BASE_URL=http://backend:5000 \\
+              --build-arg NEXT_PUBLIC_BASE_URL=http://${BACKEND_DEPLOYMENT}:5000 \\
               -f ${FRONTEND_BUILD_CONTEXT}/Dockerfile ${FRONTEND_BUILD_CONTEXT}
           """
 
@@ -83,14 +88,14 @@ pipeline {
                 docker -H ${DOCKER_HOST} network create ${APP_NETWORK}
 
               # Stop + remove old containers if they exist
-              docker -H ${DOCKER_HOST} ps -q --filter name=frontend | grep -q . && docker -H ${DOCKER_HOST} stop frontend || true
-              docker -H ${DOCKER_HOST} ps -aq --filter name=frontend | grep -q . && docker -H ${DOCKER_HOST} rm frontend || true
+              docker -H ${DOCKER_HOST} ps -q --filter name=${FRONTEND_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} stop ${FRONTEND_DEPLOYMENT} || true
+              docker -H ${DOCKER_HOST} ps -aq --filter name=${FRONTEND_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} rm ${FRONTEND_DEPLOYMENT} || true
 
-              docker -H ${DOCKER_HOST} ps -q --filter name=backend | grep -q . && docker -H ${DOCKER_HOST} stop backend || true
-              docker -H ${DOCKER_HOST} ps -aq --filter name=backend | grep -q . && docker -H ${DOCKER_HOST} rm backend || true
+              docker -H ${DOCKER_HOST} ps -q --filter name=${BACKEND_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} stop ${BACKEND_DEPLOYMENT} || true
+              docker -H ${DOCKER_HOST} ps -aq --filter name=${BACKEND_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} rm ${BACKEND_DEPLOYMENT} || true
 
-              docker -H ${DOCKER_HOST} ps -q --filter name=cloudflared | grep -q . && docker -H ${DOCKER_HOST} stop cloudflared || true
-              docker -H ${DOCKER_HOST} ps -aq --filter name=cloudflared | grep -q . && docker -H ${DOCKER_HOST} rm cloudflared || true
+              docker -H ${DOCKER_HOST} ps -q --filter name=${CLOUDFLARED_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} stop ${CLOUDFLARED_DEPLOYMENT} || true
+              docker -H ${DOCKER_HOST} ps -aq --filter name=${CLOUDFLARED_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} rm ${CLOUDFLARED_DEPLOYMENT} || true
 
               # Pull fresh images (optional; docker run will pull if missing)
               docker -H ${DOCKER_HOST} pull ${REGISTRY}/${BACKEND_IMAGE}:${TAG} || true
@@ -98,7 +103,7 @@ pipeline {
 
               ### BACKEND: create container, copy config.json into it, then start ###
               echo "Creating backend container (stopped)..."
-              BACKEND_CID=$(docker -H ${DOCKER_HOST} create --name backend --network ${APP_NETWORK} ${REGISTRY}/${BACKEND_IMAGE}:${TAG})
+              BACKEND_CID=$(docker -H ${DOCKER_HOST} create --name ${BACKEND_DEPLOYMENT} --network ${APP_NETWORK} ${REGISTRY}/${BACKEND_IMAGE}:${TAG})
               echo "Backend container created: $BACKEND_CID"
 
               # Copy backend-config.json (local workspace file) into remote container
@@ -109,16 +114,16 @@ pipeline {
               docker -H ${DOCKER_HOST} start ${BACKEND_CID}
               echo "Backend started."
 
-              ### FRONTEND: run (frontend expects backend reachable at 'http://backend:5000' inside docker network) ###
-              echo "Running frontend container (will be removed if exists)..."
-              docker -H ${DOCKER_HOST} run -d --name frontend --network ${APP_NETWORK} -p 3000:3000 ${REGISTRY}/${FRONTEND_IMAGE}:${TAG}
+              ### FRONTEND: run (frontend expects backend reachable at deployment name inside docker network) ###
+              echo "Running frontend container..."
+              docker -H ${DOCKER_HOST} run -d --name ${FRONTEND_DEPLOYMENT} --network ${APP_NETWORK} -p 3000:3000 ${REGISTRY}/${FRONTEND_IMAGE}:${TAG}
 
               ### CLOUDFLARED: create container, copy credentials + config, then start ###
               # Use the official cloudflared image
               CLOUDFLARED_IMG=cloudflare/cloudflared:latest
 
               echo "Creating cloudflared container..."
-              CLOUDFLARED_CID=$(docker -H ${DOCKER_HOST} create --name cloudflared --network ${APP_NETWORK} ${CLOUDFLARED_IMG} tunnel run --config /etc/cloudflared/config.yml)
+              CLOUDFLARED_CID=$(docker -H ${DOCKER_HOST} create --name ${CLOUDFLARED_DEPLOYMENT} --network ${APP_NETWORK} ${CLOUDFLARED_IMG} tunnel run --config /etc/cloudflared/config.yml)
               echo "cloudflared container created: $CLOUDFLARED_CID"
 
               # copy credentials.json and config.yml into container
