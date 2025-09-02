@@ -1,24 +1,69 @@
 "use client";
 import React, { useState } from "react";
 import Navbar from "@/app/components/Navbar";
+import { useRouter } from "next/navigation";
 
 export default function SignUp() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  
+  const router = useRouter();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // TODO: handle signup logic
-    console.log("Name:", name, "Email:", email, "Password:", password);
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("http://localhost:5000/create-account", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fullName: name,
+          email: email,
+          password: password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        setError(data.message);
+      } else {
+        // Store the access token in localStorage
+        localStorage.setItem("token", data.accessToken);
+        
+        // Store user info if needed
+        localStorage.setItem("user", JSON.stringify(data.user));
+        
+        // Redirect to dashboard or notes page
+        router.push("/dashboard"); // or wherever you want to redirect after signup
+      }
+    } catch (error) {
+      console.error("Signup error:", error);
+      setError("An error occurred during signup. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-        <Navbar/>
+      <Navbar />
       <div className="flex flex-1 items-center justify-center px-4">
         <div className="w-full max-w-md bg-white shadow-lg rounded-2xl p-8">
           <h4 className="text-3xl font-bold mb-8 text-center text-black">Sign Up</h4>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-xl text-sm">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
@@ -30,6 +75,7 @@ export default function SignUp() {
                 onChange={(e) => setName(e.target.value)}
                 className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                 required
+                disabled={isLoading}
               />
             </div>
 
@@ -42,6 +88,7 @@ export default function SignUp() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                 required
+                disabled={isLoading}
               />
             </div>
 
@@ -54,14 +101,16 @@ export default function SignUp() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                 required
+                disabled={isLoading}
               />
             </div>
 
             <button
               type="submit"
-              className="w-full bg-blue-600 text-white py-3 rounded-xl hover:bg-blue-700 transition duration-200"
+              disabled={isLoading}
+              className="w-full bg-blue-600 text-white py-3 rounded-xl hover:bg-blue-700 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sign Up
+              {isLoading ? "Creating Account..." : "Sign Up"}
             </button>
           </form>
 
@@ -76,5 +125,3 @@ export default function SignUp() {
     </div>
   );
 }
-
-
