@@ -48,21 +48,25 @@ pipeline {
     stage('Tag + Push') {
       steps {
         script {
-          // Optional registry login if credentials provided
-          withCredentials([usernamePassword(credentialsId: 'REGISTRY_CREDS', usernameVariable: 'REG_USER', passwordVariable: 'REG_PASS')]) {
-            sh '''
-              if [ -n "${REG_USER}" ]; then
-                echo "Logging into registry..."
-                docker login -u "${REG_USER}" -p "${REG_PASS}" ${REGISTRY}
-              fi
-            '''
-          }
-
+          echo "Starting Tag + Push stage..."
+          
+          // Check if images exist
+          sh "docker images | grep ${FRONTEND_IMAGE} || echo 'Frontend image not found!'"
+          sh "docker images | grep ${BACKEND_IMAGE} || echo 'Backend image not found!'"
+          
+          // Tag images
+          echo "Tagging images..."
           sh "docker tag ${FRONTEND_IMAGE}:${TAG} ${REGISTRY}/${FRONTEND_IMAGE}:${TAG}"
           sh "docker tag ${BACKEND_IMAGE}:${TAG} ${REGISTRY}/${BACKEND_IMAGE}:${TAG}"
-
+          
+          echo "Images tagged successfully"
+          
+          // Try to push without credentials first (if registry allows it)
+          echo "Attempting to push images..."
           sh "docker push ${REGISTRY}/${FRONTEND_IMAGE}:${TAG}"
           sh "docker push ${REGISTRY}/${BACKEND_IMAGE}:${TAG}"
+          
+          echo "Images pushed successfully"
         }
       }
     }
