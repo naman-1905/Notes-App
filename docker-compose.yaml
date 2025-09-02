@@ -1,0 +1,38 @@
+version: "3.9"
+services:
+  backend:
+    build: ./backend
+    container_name: notes_backend
+    networks:
+      - app
+    environment:
+      - NODE_ENV=production
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend/config.json:/app/config.json:ro
+
+  frontend:
+    build:
+      context: ./frontend/notes-app
+      args:
+        NEXT_PUBLIC_BASE_URL=http://backend:5000
+    container_name: notes_frontend
+    networks:
+      - app
+    ports:
+      - "3000:3000"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: notes_cloudflared
+    networks:
+      - app
+    command: tunnel run --config /etc/cloudflared/config.yml
+    volumes:
+      - ./cloudflared/credentials.json:/etc/cloudflared/credentials.json:ro
+      - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+
+networks:
+  app:
+    driver: bridge
