@@ -58,6 +58,28 @@ const Homepage = () => {
     }
   }
 
+  useEffect(() => {
+  let intervalId;
+
+  const initializePage = async () => {
+    setIsLoading(true)
+    await getUserInfo()
+    await getAllNotes()
+    setIsLoading(false)
+
+    // Start polling after initial load
+    intervalId = setInterval(() => {
+      getAllNotes()
+    }, 5000) // every 5 seconds
+  }
+
+  initializePage()
+
+  // Cleanup interval on unmount
+  return () => clearInterval(intervalId)
+}, [])
+
+
   // Search notes
   const onSearchNote = async (query) => {
     try {
