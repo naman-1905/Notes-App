@@ -80,12 +80,81 @@ pipeline {
           echo "Testing remote Docker connection..."
           sh "docker -H ${DOCKER_HOST} version || (echo 'Failed to connect to remote Docker host' && exit 1)"
           
-          // Create temp files from Jenkins secrets and deploy containers to remote host
-          withCredentials([
-            string(credentialsId: 'BACKEND_CONFIG_JSON', variable: 'BACKEND_CONFIG_JSON'),
-            file(credentialsId: 'CLOUDFLARE_CREDS_FILE', variable: 'CLOUDFLARE_CREDS_LOCAL'),
-            file(credentialsId: 'CLOUDFLARE_CONFIG_FILE', variable: 'CLOUDFLARE_CONFIG_LOCAL')
-          ]) {
+          // Deploy without Cloudflare for now (simplified version)
+          echo "Deploying backend and frontend only..."
+          
+          // Try to get backend config
+          try {
+            withCredentials([string(credentialsId: 'BACKEND_CONFIG_JSON', variable: 'BACKEND_CONFIG_JSON')]) {
+              echo "✓ BACKEND_CONFIG_JSON credential found"
+              
+              sh '''
+                set -e
+                
+                echo "=== STEP 1: Writing backend config ==="
+                printf "%s" "$BACKEND_CONFIG_JSON" > backend-config.json
+                echo "✓ Backend config written to file"
+
+                echo "=== STEP 2: Setting up network ==="
+                # Ensure remote network exists
+                docker -H ${DOCKER_HOST} network inspect ${APP_NETWORK} >/dev/null 2>&1 || \
+                  docker -H ${DOCKER_HOST} network create ${APP_NETWORK}
+                echo "Network ${APP_NETWORK} ready."
+
+                echo "=== STEP 3: Cleaning up old containers ==="
+                # Stop + remove old containers if they exist
+                echo "Cleaning up frontend..."
+                docker -H ${DOCKER_HOST} ps -q --filter name=${FRONTEND_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} stop ${FRONTEND_DEPLOYMENT} || true
+                docker -H ${DOCKER_HOST} ps -aq --filter name=${FRONTEND_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} rm ${FRONTEND_DEPLOYMENT} || true
+
+                echo "Cleaning up backend..."
+                docker -H ${DOCKER_HOST} ps -q --filter name=${BACKEND_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} stop ${BACKEND_DEPLOYMENT} || true
+                docker -H ${DOCKER_HOST} ps -aq --filter name=${BACKEND_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} rm ${BACKEND_DEPLOYMENT} || true
+
+                echo "=== STEP 4: Pulling images ==="
+                # Pull fresh images
+                echo "Pulling backend image..."
+                docker -H ${DOCKER_HOST} pull ${REGISTRY}/${BACKEND_IMAGE}:${TAG}
+                echo "Pulling frontend image..."
+                docker -H ${DOCKER_HOST} pull ${REGISTRY}/${FRONTEND_IMAGE}:${TAG}
+
+                echo "=== STEP 5: Deploying backend ==="
+                ### BACKEND: create container, copy config.json into it, then start ###
+                echo "Creating backend container (stopped)..."
+                BACKEND_CID=$(docker -H ${DOCKER_HOST} create --name ${BACKEND_DEPLOYMENT} --network ${APP_NETWORK} ${REGISTRY}/${BACKEND_IMAGE}:${TAG})
+                echo "Backend container created: $BACKEND_CID"
+
+                # Copy backend-config.json (local workspace file) into remote container
+                echo "Copying config.json into backend container..."
+                docker -H ${DOCKER_HOST} cp backend-config.json ${BACKEND_CID}:/app/config.json
+                echo "Copied config.json into backend container."
+
+                # Start backend
+                echo "Starting backend container..."
+                docker -H ${DOCKER_HOST} start ${BACKEND_CID}
+                echo "Backend started successfully."
+
+                echo "=== STEP 6: Deploying frontend ==="
+                ### FRONTEND: run ###
+                echo "Running frontend container..."
+                docker -H ${DOCKER_HOST} run -d --name ${FRONTEND_DEPLOYMENT} --network ${APP_NETWORK} -p 3000:3000 ${REGISTRY}/${FRONTEND_IMAGE}:${TAG}
+                echo "Frontend started successfully."
+
+                echo "=== STEP 7: Final verification ==="
+                # give things a second to come up
+                sleep 5
+                
+                # Check container status
+                echo "Checking container status..."
+                docker -H ${DOCKER_HOST} ps --filter name=${BACKEND_DEPLOYMENT}
+                docker -H ${DOCKER_HOST} ps --filter name=${FRONTEND_DEPLOYMENT}
+
+                echo "Deployment complete! Your app should be accessible at http://10.243.52.185:3000"
+              '''
+            }
+          } catch (Exception e) {
+            error "✗ BACKEND_CONFIG_JSON credential not found or accessible: ${e.getMessage()}"
+          }
             sh '''
               set -e
               
@@ -174,7 +243,6 @@ pipeline {
 
               echo "Deployment complete."
             '''
-          } // withCredentials
         } // script
       } // steps
     } // Deploy stage
