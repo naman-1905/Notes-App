@@ -16,7 +16,6 @@ const jwt = require("jsonwebtoken");
 const { authenticateToken } = require("./utilities");
 app.use(express.json());
 
-
 app.use(
     cors({
         origin: "*",
@@ -26,7 +25,6 @@ app.use(
 app.get("/", (req, res) => {
     res.send({data: "hello"});
 });
-
 
 //Create Account
 app.post("/create-account", async (req,res) => {
@@ -66,7 +64,8 @@ app.post("/create-account", async (req,res) => {
     });
 
     await user.save();
-    const accessToken = jwt.sign({user
+    const accessToken = jwt.sign({
+        user
     }, process.env.ACCESS_TOKEN_SECRET,{
         expiresIn: "36000m"
     });
@@ -79,17 +78,16 @@ app.post("/create-account", async (req,res) => {
     });
 });
 
-//Login
+//Login - FIXED
 app.post("/login", async (req,res) => {
-
-    const {email, password} =req.body;
+    const {email, password} = req.body;
 
     if (!email){
         return res.status(400).json({message:"Email is required"})
     }
 
     if (!password){
-    return res.status(400).json({message:"Password is required"})
+        return res.status(400).json({message:"Password is required"})
     }
 
     const userInfo = await User.findOne({ email: email});
@@ -99,10 +97,11 @@ app.post("/login", async (req,res) => {
     }
 
     if (userInfo.email == email && userInfo.password == password){
-        const user = { user: userInfo};
-        const accessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET,{
+        // FIXED: Use consistent structure like registration
+        const accessToken = jwt.sign({
+            user: userInfo  // Changed from { user: userInfo } to just userInfo
+        }, process.env.ACCESS_TOKEN_SECRET,{
             expiresIn:"36000m",
-
         });
 
         return res.json({
@@ -111,14 +110,12 @@ app.post("/login", async (req,res) => {
             email,
             accessToken,
         });
-
-    }else{
+    } else {
         return res.status(400).json({
             error: true,
             message: "Invalid Credentials",
         });
     }
-
 });
 
 //Add-Note
@@ -139,7 +136,6 @@ app.post("/add-note", authenticateToken, async(req,res) =>{
         return res.status(400).json({
             error:true,
             message:"Content is required."
-
         });
     }
     
@@ -158,7 +154,6 @@ app.post("/add-note", authenticateToken, async(req,res) =>{
         message: "Note added successfully",
     });
     }
-
     catch (error) {
         console.error("Add note error:", error);
         console.error("Error details:", error.message);
@@ -168,7 +163,6 @@ app.post("/add-note", authenticateToken, async(req,res) =>{
         });
     }
 });
-
 
 // Edit Note
 app.put("/edit-note/:noteId", authenticateToken, async(req,res) =>{
@@ -223,7 +217,6 @@ app.get("/get-all-notes/", authenticateToken, async(req,res) =>{
             error:false,
             notes,
             message: "All notes retrieved successfully",
-
         });
 
     } catch(error){
@@ -232,7 +225,7 @@ app.get("/get-all-notes/", authenticateToken, async(req,res) =>{
             message: "Internal Server Error",
         });
     }
-    });
+});
 
 //Delete Note
 app.delete("/delete-note/:noteId", authenticateToken, async(req,res) =>{
@@ -248,8 +241,8 @@ app.delete("/delete-note/:noteId", authenticateToken, async(req,res) =>{
                 error:true,
                 message:"Note not found"
             });
-
         }
+
         await Note.deleteOne({_id: noteId, userId: user._id
         });
         return res.json({
@@ -303,23 +296,45 @@ app.put("/update-note-pinned/:noteId", authenticateToken, async(req,res) =>{
     }   
 });
 
-// Get User
-app.get("/get-user", authenticateToken, async(req,res) =>{
-const {user} = req.user;
+// Get User - FIXED
+app.get("/get-user", authenticateToken, async(req,res) => {
+    try {
+        console.log("req.user in get-user:", req.user); // Debug log
+        
+        const {user} = req.user;
 
-const isUser= await User.findOne({_id:user._id});
-if (!isUser) {
-    return res.sendStatus(401);
-}
+        if (!user || !user._id) {
+            return res.status(400).json({
+                error: true,
+                message: "Invalid user data in token"
+            });
+        }
 
-    return res.json({
-        user: {fullName: isUser.fullName,
-                email:isUser.email,
+        const isUser = await User.findOne({_id: user._id});
+        
+        if (!isUser) {
+            return res.status(401).json({
+                error: true,
+                message: "User not found"
+            });
+        }
+
+        return res.json({
+            user: {
+                fullName: isUser.fullName,
+                email: isUser.email,
                 "_id": isUser._id,
-                createdOn:isUser.createdOn},
-                message:"",
-
-    });
+                createdOn: isUser.createdOn
+            },
+            message: "User retrieved successfully",
+        });
+    } catch (error) {
+        console.error("Get user error:", error);
+        return res.status(500).json({
+            error: true,
+            message: "Internal Server Error"
+        });
+    }
 });
 
 // Search Notes API
@@ -355,7 +370,6 @@ app.get("/search-notes", authenticateToken, async(req,res) =>{
         });
     }
 });
-
 
 app.listen(5000);
 
