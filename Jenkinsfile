@@ -74,6 +74,12 @@ pipeline {
     stage('Deploy to remote Docker host') {
       steps {
         script {
+          echo "Starting deployment to remote Docker host..."
+          
+          // Test remote Docker connection first
+          echo "Testing remote Docker connection..."
+          sh "docker -H ${DOCKER_HOST} version || (echo 'Failed to connect to remote Docker host' && exit 1)"
+          
           // Create temp files from Jenkins secrets and deploy containers to remote host
           withCredentials([
             string(credentialsId: 'BACKEND_CONFIG_JSON', variable: 'BACKEND_CONFIG_JSON'),
@@ -82,46 +88,62 @@ pipeline {
           ]) {
             sh '''
               set -e
-
+              
+              echo "=== STEP 1: Writing backend config ==="
               # write backend config.json from secret-text to workspace file
               printf "%s" "$BACKEND_CONFIG_JSON" > backend-config.json
               echo "Wrote backend-config.json (workspace)."
 
+              echo "=== STEP 2: Setting up network ==="
               # Ensure remote network exists
               docker -H ${DOCKER_HOST} network inspect ${APP_NETWORK} >/dev/null 2>&1 || \
                 docker -H ${DOCKER_HOST} network create ${APP_NETWORK}
+              echo "Network ${APP_NETWORK} ready."
 
+              echo "=== STEP 3: Cleaning up old containers ==="
               # Stop + remove old containers if they exist
+              echo "Cleaning up frontend..."
               docker -H ${DOCKER_HOST} ps -q --filter name=${FRONTEND_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} stop ${FRONTEND_DEPLOYMENT} || true
               docker -H ${DOCKER_HOST} ps -aq --filter name=${FRONTEND_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} rm ${FRONTEND_DEPLOYMENT} || true
 
+              echo "Cleaning up backend..."
               docker -H ${DOCKER_HOST} ps -q --filter name=${BACKEND_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} stop ${BACKEND_DEPLOYMENT} || true
               docker -H ${DOCKER_HOST} ps -aq --filter name=${BACKEND_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} rm ${BACKEND_DEPLOYMENT} || true
 
+              echo "Cleaning up cloudflared..."
               docker -H ${DOCKER_HOST} ps -q --filter name=${CLOUDFLARED_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} stop ${CLOUDFLARED_DEPLOYMENT} || true
               docker -H ${DOCKER_HOST} ps -aq --filter name=${CLOUDFLARED_DEPLOYMENT} | grep -q . && docker -H ${DOCKER_HOST} rm ${CLOUDFLARED_DEPLOYMENT} || true
 
+              echo "=== STEP 4: Pulling images ==="
               # Pull fresh images (optional; docker run will pull if missing)
+              echo "Pulling backend image..."
               docker -H ${DOCKER_HOST} pull ${REGISTRY}/${BACKEND_IMAGE}:${TAG} || true
+              echo "Pulling frontend image..."
               docker -H ${DOCKER_HOST} pull ${REGISTRY}/${FRONTEND_IMAGE}:${TAG} || true
 
+              echo "=== STEP 5: Deploying backend ==="
               ### BACKEND: create container, copy config.json into it, then start ###
               echo "Creating backend container (stopped)..."
               BACKEND_CID=$(docker -H ${DOCKER_HOST} create --name ${BACKEND_DEPLOYMENT} --network ${APP_NETWORK} ${REGISTRY}/${BACKEND_IMAGE}:${TAG})
               echo "Backend container created: $BACKEND_CID"
 
               # Copy backend-config.json (local workspace file) into remote container
+              echo "Copying config.json into backend container..."
               docker -H ${DOCKER_HOST} cp backend-config.json ${BACKEND_CID}:/app/config.json
               echo "Copied config.json into backend container."
 
               # Start backend
+              echo "Starting backend container..."
               docker -H ${DOCKER_HOST} start ${BACKEND_CID}
-              echo "Backend started."
+              echo "Backend started successfully."
 
+              echo "=== STEP 6: Deploying frontend ==="
               ### FRONTEND: run (frontend expects backend reachable at deployment name inside docker network) ###
               echo "Running frontend container..."
               docker -H ${DOCKER_HOST} run -d --name ${FRONTEND_DEPLOYMENT} --network ${APP_NETWORK} -p 3000:3000 ${REGISTRY}/${FRONTEND_IMAGE}:${TAG}
+              echo "Frontend started successfully."
 
+              echo "=== STEP 7: Deploying cloudflared ==="
               ### CLOUDFLARED: create container, copy credentials + config, then start ###
               # Use the official cloudflared image
               CLOUDFLARED_IMG=cloudflare/cloudflared:latest
@@ -131,15 +153,24 @@ pipeline {
               echo "cloudflared container created: $CLOUDFLARED_CID"
 
               # copy credentials.json and config.yml into container
+              echo "Copying cloudflared credentials and config..."
               docker -H ${DOCKER_HOST} cp "${CLOUDFLARE_CREDS_LOCAL}" ${CLOUDFLARED_CID}:/etc/cloudflared/credentials.json
               docker -H ${DOCKER_HOST} cp "${CLOUDFLARE_CONFIG_LOCAL}" ${CLOUDFLARED_CID}:/etc/cloudflared/config.yml
               echo "Copied cloudflared credentials and config."
 
+              echo "Starting cloudflared container..."
               docker -H ${DOCKER_HOST} start ${CLOUDFLARED_CID}
-              echo "cloudflared started."
+              echo "cloudflared started successfully."
 
+              echo "=== STEP 8: Final verification ==="
               # give things a second to come up
               sleep 5
+              
+              # Check container status
+              echo "Checking container status..."
+              docker -H ${DOCKER_HOST} ps --filter name=${BACKEND_DEPLOYMENT}
+              docker -H ${DOCKER_HOST} ps --filter name=${FRONTEND_DEPLOYMENT}
+              docker -H ${DOCKER_HOST} ps --filter name=${CLOUDFLARED_DEPLOYMENT}
 
               echo "Deployment complete."
             '''
