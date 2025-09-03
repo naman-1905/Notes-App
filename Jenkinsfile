@@ -32,9 +32,10 @@ pipeline {
 
                     echo 'Building frontend image with internal backend URL...'
                     sh """
-                        docker build -t ${FRONTEND_IMAGE}:${TAG} \\
-                        --build-arg NEXT_PUBLIC_BASE_URL=http://${BACKEND_DEPLOYMENT}:5000 \\
+                       docker build -t ${FRONTEND_IMAGE}:${TAG} \
+                        --build-arg NEXT_PUBLIC_BASE_URL=https://apinotes.halfskirmish.com \
                         -f ${FRONTEND_BUILD_CONTEXT}/Dockerfile ${FRONTEND_BUILD_CONTEXT}
+
                     """
                 }
             }
