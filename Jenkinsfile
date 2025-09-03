@@ -25,15 +25,16 @@ pipeline {
         stage('Build Docker Images') {
             steps {
                 script {
-                    echo 'Building frontend image...'
-                    sh """
-                        docker build -t ${FRONTEND_IMAGE}:${TAG} \\
-                        --build-arg NEXT_PUBLIC_BASE_URL=https://apinotes.halfskirmish.com \\
-                        -f ${FRONTEND_BUILD_CONTEXT}/Dockerfile ${FRONTEND_BUILD_CONTEXT}
-                    """
                     echo 'Building backend image...'
                     sh """
                         docker build -t ${BACKEND_IMAGE}:${TAG} -f ${BACKEND_BUILD_CONTEXT}/Dockerfile ${BACKEND_BUILD_CONTEXT}
+                    """
+
+                    echo 'Building frontend image with internal backend URL...'
+                    sh """
+                        docker build -t ${FRONTEND_IMAGE}:${TAG} \\
+                        --build-arg NEXT_PUBLIC_BASE_URL=http://${BACKEND_DEPLOYMENT}:5000 \\
+                        -f ${FRONTEND_BUILD_CONTEXT}/Dockerfile ${FRONTEND_BUILD_CONTEXT}
                     """
                 }
             }
@@ -42,15 +43,15 @@ pipeline {
         stage('Push Images to Registry') {
             steps {
                 script {
-                    echo 'Tagging and pushing frontend image...'
-                    sh """
-                        docker tag ${FRONTEND_IMAGE}:${TAG} ${REGISTRY}/${FRONTEND_IMAGE}:${TAG}
-                        docker push ${REGISTRY}/${FRONTEND_IMAGE}:${TAG}
-                    """
-                    echo 'Tagging and pushing backend image...'
+                    echo 'Pushing backend image...'
                     sh """
                         docker tag ${BACKEND_IMAGE}:${TAG} ${REGISTRY}/${BACKEND_IMAGE}:${TAG}
                         docker push ${REGISTRY}/${BACKEND_IMAGE}:${TAG}
+                    """
+                    echo 'Pushing frontend image...'
+                    sh """
+                        docker tag ${FRONTEND_IMAGE}:${TAG} ${REGISTRY}/${FRONTEND_IMAGE}:${TAG}
+                        docker push ${REGISTRY}/${FRONTEND_IMAGE}:${TAG}
                     """
                 }
             }
@@ -69,9 +70,7 @@ pipeline {
                     withCredentials([string(credentialsId: 'BACKEND_CONFIG_JSON', variable: 'BACKEND_CONFIG_JSON')]) {
                         sh '''
                             printf "%s" "$BACKEND_CONFIG_JSON" > backend-config.json
-                            # Remove old container if exists
                             docker -H ${DOCKER_HOST} rm -f ${BACKEND_DEPLOYMENT} || true
-                            # Create and start new backend container with config
                             BACKEND_CID=$(docker -H ${DOCKER_HOST} create --name ${BACKEND_DEPLOYMENT} --network ${APP_NETWORK} -p 5000:5000 ${REGISTRY}/${BACKEND_IMAGE}:${TAG})
                             docker -H ${DOCKER_HOST} cp backend-config.json ${BACKEND_CID}:/app/config.json
                             docker -H ${DOCKER_HOST} start ${BACKEND_CID}
