@@ -22,24 +22,34 @@ pipeline {
             steps { checkout scm }
         }
 
-       stage('Build Docker Images') {
-    steps {
-        script {
-            echo 'Building backend image...'
-            sh """
-                docker build -t ${BACKEND_IMAGE}:${TAG} -f ${BACKEND_BUILD_CONTEXT}/Dockerfile ${BACKEND_BUILD_CONTEXT}
-            """
-
-            echo 'Building frontend image with production API URL...'
-            sh """
-               docker build -t ${FRONTEND_IMAGE}:${TAG} \
-                --build-arg NEXT_PUBLIC_BASE_URL=https://apinotes.halfskirmish.com \
-                -f ${FRONTEND_BUILD_CONTEXT}/Dockerfile ${FRONTEND_BUILD_CONTEXT}
-            """
+        stage('Prepare Backend .env') {
+            steps {
+                withCredentials([string(credentialsId: 'NOTES_BACKEND_ENV', variable: 'BACKEND_ENV_CONTENT')]) {
+                    sh '''
+                        echo "$BACKEND_ENV_CONTENT" > backend/.env
+                        # Optional: cat backend/.env  # remove in production
+                    '''
+                }
+            }
         }
-    }
-}
 
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    echo 'Building backend image...'
+                    sh """
+                        docker build -t ${BACKEND_IMAGE}:${TAG} -f ${BACKEND_BUILD_CONTEXT}/Dockerfile ${BACKEND_BUILD_CONTEXT}
+                    """
+
+                    echo 'Building frontend image with production API URL...'
+                    sh """
+                        docker build -t ${FRONTEND_IMAGE}:${TAG} \
+                        --build-arg NEXT_PUBLIC_BASE_URL=https://apinotes.halfskirmish.com \
+                        -f ${FRONTEND_BUILD_CONTEXT}/Dockerfile ${FRONTEND_BUILD_CONTEXT}
+                    """
+                }
+            }
+        }
 
         stage('Push Images to Registry') {
             steps {
@@ -68,16 +78,14 @@ pipeline {
                     """
 
                     // Backend deployment
-                    withCredentials([string(credentialsId: 'BACKEND_CONFIG_JSON', variable: 'BACKEND_CONFIG_JSON')]) {
-                        sh '''
-                            printf "%s" "$BACKEND_CONFIG_JSON" > backend-config.json
-                            docker -H ${DOCKER_HOST} rm -f ${BACKEND_DEPLOYMENT} || true
-                            BACKEND_CID=$(docker -H ${DOCKER_HOST} create --name ${BACKEND_DEPLOYMENT} --network ${APP_NETWORK} -p 5000:5000 ${REGISTRY}/${BACKEND_IMAGE}:${TAG})
-                            docker -H ${DOCKER_HOST} cp backend-config.json ${BACKEND_CID}:/app/config.json
-                            docker -H ${DOCKER_HOST} start ${BACKEND_CID}
-                            rm backend-config.json
-                        '''
-                    }
+                    sh """
+                        docker -H ${DOCKER_HOST} rm -f ${BACKEND_DEPLOYMENT} || true
+                        docker -H ${DOCKER_HOST} run -d --name ${BACKEND_DEPLOYMENT} \\
+                            --network ${APP_NETWORK} \\
+                            --env-file ${BACKEND_BUILD_CONTEXT}/.env \\
+                            -p 5000:5000 \\
+                            ${REGISTRY}/${BACKEND_IMAGE}:${TAG}
+                    """
 
                     // Frontend deployment
                     sh """
