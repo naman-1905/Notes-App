@@ -22,24 +22,24 @@ pipeline {
             steps { checkout scm }
         }
 
-        stage('Build Docker Images') {
-            steps {
-                script {
-                    echo 'Building backend image...'
-                    sh """
-                        docker build -t ${BACKEND_IMAGE}:${TAG} -f ${BACKEND_BUILD_CONTEXT}/Dockerfile ${BACKEND_BUILD_CONTEXT}
-                    """
+       stage('Build Docker Images') {
+    steps {
+        script {
+            echo 'Building backend image...'
+            sh """
+                docker build -t ${BACKEND_IMAGE}:${TAG} -f ${BACKEND_BUILD_CONTEXT}/Dockerfile ${BACKEND_BUILD_CONTEXT}
+            """
 
-                    echo 'Building frontend image with internal backend URL...'
-                    sh """
-                       docker build -t ${FRONTEND_IMAGE}:${TAG} \
-                        --build-arg NEXT_PUBLIC_BASE_URL=https://apinotes.halfskirmish.com \
-                        -f ${FRONTEND_BUILD_CONTEXT}/Dockerfile ${FRONTEND_BUILD_CONTEXT}
-
-                    """
-                }
-            }
+            echo 'Building frontend image with production API URL...'
+            sh """
+               docker build -t ${FRONTEND_IMAGE}:${TAG} \
+                --build-arg NEXT_PUBLIC_BASE_URL=https://apinotes.halfskirmish.com \
+                -f ${FRONTEND_BUILD_CONTEXT}/Dockerfile ${FRONTEND_BUILD_CONTEXT}
+            """
         }
+    }
+}
+
 
         stage('Push Images to Registry') {
             steps {
