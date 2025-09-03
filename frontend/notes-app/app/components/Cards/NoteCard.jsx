@@ -1,5 +1,5 @@
 import React from 'react';
-import { MdOutlinePushPin, MdCreate, MdDelete } from 'react-icons/md';
+import { MdOutlinePushPin, MdDelete } from 'react-icons/md';
 
 const NoteCard = ({
   title,
@@ -17,8 +17,29 @@ const NoteCard = ({
     return tagArray.map(tag => `${tag}`).join(', ');
   };
 
+  // Handle pin note with event stopping
+  const handlePinNote = (e) => {
+    e.stopPropagation(); // Prevent card click
+    onPinNote();
+  };
+
+  // Handle edit with event stopping
+  const handleEdit = (e) => {
+    e.stopPropagation(); // Prevent card click
+    onEdit();
+  };
+
+  // Handle delete with event stopping
+  const handleDelete = (e) => {
+    e.stopPropagation(); // Prevent card click
+    onDelete();
+  };
+
   return (
-    <div className="border border-gray-200 rounded p-4 bg-white hover:drop-shadow-lg cursor-pointer transition-all ease-in-out">
+    <div 
+      className="border border-gray-200 rounded p-4 bg-white hover:drop-shadow-lg cursor-pointer transition-all ease-in-out"
+      onClick={onEdit} // Make entire card clickable to open modal
+    >
       <div className="flex items-center justify-between">
         <div>
           <h6 className="text-sm text-slate-900 font-medium">{title}</h6>
@@ -28,7 +49,7 @@ const NoteCard = ({
           className={`text-2xl cursor-pointer ${
             isPinned ? 'text-blue-600' : 'text-slate-300'
           } hover:text-blue-600`}
-          onClick={onPinNote}
+          onClick={handlePinNote}
         />
       </div>
       
@@ -41,13 +62,9 @@ const NoteCard = ({
           {formatTags(tags)}
         </div>
         <div className="flex gap-2">
-          <MdCreate 
-            className="text-xl text-gray-500 cursor-pointer hover:text-green-600 transition-colors" 
-            onClick={onEdit} 
-          />
           <MdDelete 
             className="text-xl text-gray-500 cursor-pointer hover:text-red-500 transition-colors" 
-            onClick={onDelete} 
+            onClick={handleDelete} 
           />
         </div>
       </div>
