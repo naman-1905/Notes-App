@@ -10,7 +10,7 @@ pipeline {
     FRONTEND_IMAGE  = "halfskirmish_notes_frontend"
     BACKEND_IMAGE   = "halfskirmish_notes_backend"
     
-    // Deployment names following the weather app pattern
+    // Deployment names
     FRONTEND_DEPLOYMENT = "halfskirmish-notes-frontend"
     BACKEND_DEPLOYMENT  = "halfskirmish-notes-backend"
 
@@ -31,7 +31,7 @@ pipeline {
           echo 'Building Frontend Docker Image...'
           sh """
             docker build -t ${FRONTEND_IMAGE}:${TAG} \\
-              --build-arg NEXT_PUBLIC_BASE_URL=https://notes.halfskirmish.com/api \\
+              --build-arg NEXT_PUBLIC_BASE_URL=https://apinotes.halfskirmish.com \\
               -f ${FRONTEND_BUILD_CONTEXT}/Dockerfile ${FRONTEND_BUILD_CONTEXT}
           """
 
