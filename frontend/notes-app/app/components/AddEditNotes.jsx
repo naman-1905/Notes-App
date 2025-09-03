@@ -52,11 +52,11 @@ function AddEditNotes({ noteData, type, onClose, onSubmit }) {
   };
 
   return (
-    <div className="fixed bg-gray-50  inset-0 flex items-center justify-center z-50 p-4">
+    <div className="fixed bg-gray-50 inset-0 flex items-center justify-center z-50 p-4">
       <div className="bg-white w-full max-w-xl sm:max-w-2xl md:max-w-3xl rounded-xl shadow-lg relative p-6 sm:p-8 overflow-y-auto max-h-[90vh]">
         {/* Close Button */}
         <button
-          className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 transition"
+          className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 cursor-pointer transition"
           onClick={onClose}
           disabled={isLoading}
         >
@@ -100,7 +100,7 @@ function AddEditNotes({ noteData, type, onClose, onSubmit }) {
 
         {/* Submit Button */}
         <button
-          className={`w-full sm:w-auto mt-6 sm:mt-8 px-6 py-3 rounded-2xl font-bold text-white transition-colors ${
+          className={`w-full sm:w-auto cursor-pointer mt-6 sm:mt-8 px-6 py-3 rounded-2xl font-bold text-white transition-colors ${
             isLoading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600"
           }`}
           onClick={handleSaveNote}
