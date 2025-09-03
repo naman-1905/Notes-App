@@ -101,7 +101,7 @@ pipeline {
               printf "%s" "$BACKEND_CONFIG_JSON" > backend-config.json
               
               # Create backend container (stopped)
-              BACKEND_CID=$(docker -H ${DOCKER_HOST} create --name ${BACKEND_DEPLOYMENT} --network ${APP_NETWORK} ${REGISTRY}/${BACKEND_IMAGE}:${TAG})
+              BACKEND_CID=$(docker -H ${DOCKER_HOST} create --name ${BACKEND_DEPLOYMENT} --network ${APP_NETWORK} -p 5000:5000 ${REGISTRY}/${BACKEND_IMAGE}:${TAG})
               
               # Copy config into container
               docker -H ${DOCKER_HOST} cp backend-config.json ${BACKEND_CID}:/app/config.json
@@ -114,10 +114,11 @@ pipeline {
             '''
           }
 
-          // Run frontend container (connecting to backend via network)
+          // Run frontend container (publishing port 3000 for Cloudflare Tunnel)
           sh """
             docker -H ${DOCKER_HOST} run -d --name ${FRONTEND_DEPLOYMENT} \\
             --network ${APP_NETWORK} \\
+            -p 3000:3000 \\
             ${REGISTRY}/${FRONTEND_IMAGE}:${TAG}
           """
         }
