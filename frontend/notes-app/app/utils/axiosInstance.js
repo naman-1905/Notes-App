@@ -1,3 +1,4 @@
+// /home/naman/Notes-App/frontend/notes-app/app/utils/axiosInstance.js
 import axios from 'axios';
 import { BASE_URL } from './constants';
 
@@ -7,20 +8,17 @@ const axiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-}); 
+});
 
 axiosInstance.interceptors.request.use(
-    (config) => {
-        const accessToken = localStorage.getItem("token");
-        if (accessToken) {
-            config.headers.Authorization = `Bearer ${accessToken}`;
-        }
-        return config;
-    },
-    (error) => {
-        return Promise.reject(error);
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
+    return config;
+  },
+  (error) => Promise.reject(error)
 );
-
 
 export default axiosInstance;
