@@ -21,7 +21,7 @@ function ProfileInfo({ name = "John Doe", onLogout }) {
       {/* Logout Button */}
       <button
         onClick={onLogout}
-        className="ml-auto px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl transition"
+        className="cursor-pointer ml-auto px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl transition"
       >
         Logout
       </button>
