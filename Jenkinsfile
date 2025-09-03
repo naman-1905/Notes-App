@@ -31,7 +31,7 @@ pipeline {
           echo 'Building Frontend Docker Image...'
           sh """
             docker build -t ${FRONTEND_IMAGE}:${TAG} \\
-              --build-arg NEXT_PUBLIC_BASE_URL=http://${BACKEND_DEPLOYMENT}:5000 \\
+              --build-arg NEXT_PUBLIC_BASE_URL=http://halfskirmish-notes-backend:5000 \\
               -f ${FRONTEND_BUILD_CONTEXT}/Dockerfile ${FRONTEND_BUILD_CONTEXT}
           """
 
