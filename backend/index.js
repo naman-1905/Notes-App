@@ -23,7 +23,7 @@ app.use(
 );
 
 app.get("/", (req, res) => {
-    res.send({data: "hello"});
+    res.send({name: "Naman's Notes App Backend" });
 });
 
 //Create Account
