@@ -61,7 +61,7 @@ function TagInput({ tags, setTags, disabled = false }) {
           disabled={disabled}
         />
         <button
-          className={`w-8 h-8 flex items-center justify-center rounded border border-blue-700 hover:bg-blue-700 ${
+          className={`w-8 h-8 flex items-center justify-center rounded cursor-pointer border border-blue-700 hover:bg-blue-700 ${
             disabled ? 'cursor-not-allowed opacity-50' : ''
           }`}
           onClick={addNewTag}
