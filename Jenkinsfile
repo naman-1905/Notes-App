@@ -16,7 +16,7 @@ pipeline {
 
     environment {
         // Registry configuration
-        REGISTRY        = "127.0.0.1:5000"
+        REGISTRY        = "10.243.4.236:5000"
         TAG             = "latest"
 
         // Docker deployment configuration
