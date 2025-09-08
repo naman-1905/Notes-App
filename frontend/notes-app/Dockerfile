@@ -1,44 +1,39 @@
-# Build stage
-FROM node:18-alpine AS builder
+# Use Node.js LTS Alpine image
+FROM node:18-alpine
 
+# Install wget for health checks
+RUN apk add --no-cache wget
+
+# Set working directory
 WORKDIR /app
 
 # Accept NEXT_PUBLIC_BASE_URL at build time
 ARG NEXT_PUBLIC_BASE_URL
 ENV NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL}
 
-COPY package*.json ./
-RUN npm ci --silent
-
-COPY . .
-
-# Build Next.js app
-RUN npm run build
-
-# Production runtime stage
-FROM node:18-alpine AS runner
-
-# Install wget for health checks
-RUN apk add --no-cache wget
-
-WORKDIR /app
-
+# Set NODE_ENV to production
 ENV NODE_ENV=production
 
 # Create nextjs user
 RUN addgroup -g 1001 -S nodejs
 RUN adduser -S nextjs -u 1001
 
-# Copy the full build output and node_modules
-COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/package*.json ./
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+# Copy package files and install dependencies
+COPY --chown=nextjs:nodejs package*.json ./
+RUN npm ci --silent && npm cache clean --force
 
+# Copy the rest of the application
+COPY --chown=nextjs:nodejs . .
+
+# Build the application
+RUN npm run build
+
+# Switch to nextjs user
 USER nextjs
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+# Set environment variables
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
-# Start Next.js in production
-CMD ["npx", "next", "start", "-p", "3000", "-H", "0.0.0.0"]
+# Start the application
+CMD ["npm", "start"]
