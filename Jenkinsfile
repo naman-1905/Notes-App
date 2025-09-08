@@ -111,6 +111,7 @@ pipeline {
                     sh """
                         docker -H ${DOCKER_HOST} run -d --name ${FRONTEND_CONTAINER_NAME} \\
                         --network ${APP_NETWORK} \\
+                        -p 3000:3000 \\
                         ${REGISTRY}/${FRONTEND_IMAGE_NAME}:${TAG}
                     """
                 }
@@ -142,6 +143,7 @@ pipeline {
                     sh """
                         docker -H ${DOCKER_HOST} run -d --name ${BACKEND_CONTAINER_NAME} \\
                         --network ${APP_NETWORK} \\
+                        -p 5000:5000 \\
                         ${REGISTRY}/${BACKEND_IMAGE_NAME}:${TAG}
                     """
                 }
