@@ -1,27 +1,11 @@
-FROM node:18-alpine AS builder
+FROM node:18
 
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
+RUN npm install
 
-# Install dependencies
-RUN npm ci
-
-# Copy application files
 COPY . .
-
-# Production stage
-FROM node:18-alpine
-
-WORKDIR /app
-
-# Copy package files and install production dependencies
-COPY package*.json ./
-RUN npm ci --only=production
-
-# Copy application files from builder
-COPY --from=builder /app/ ./
 
 ENV PORT=5000
 
