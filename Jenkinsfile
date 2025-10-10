@@ -48,7 +48,7 @@ pipeline {
                     withCredentials([string(credentialsId: 'NEXT_PUBLIC_BASE_URL', variable: 'NEXT_PUBLIC_BASE_URL')]) {
                         sh """
                             docker build \
-                                --build-arg NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL} \
+                                --build-arg NEXT_PUBLIC_BASE_URL=\${NEXT_PUBLIC_BASE_URL} \
                                 -t ${FRONTEND_IMAGE} \
                                 ${FRONTEND_PATH}
                             docker tag ${FRONTEND_IMAGE} ${REGISTRY}/${FRONTEND_IMAGE}
@@ -133,18 +133,26 @@ pipeline {
                         string(credentialsId: 'ACCESS_TOKEN_SECRET', variable: 'ACCESS_TOKEN_SECRET')
                     ]) {
                         for (host in deployHosts) {
-                            sh """
-                                docker -H tcp://${host}:2375 pull ${REGISTRY}/${BACKEND_IMAGE}
-                                docker -H tcp://${host}:2375 stop ${BACKEND_IMAGE} || true
-                                docker -H tcp://${host}:2375 rm ${BACKEND_IMAGE} || true
-                                docker -H tcp://${host}:2375 run -d \
-                                    --name ${BACKEND_IMAGE} \
+                            sh '''
+                                docker -H tcp://''' + host + ''':2375 pull ''' + env.REGISTRY + '''/''' + env.BACKEND_IMAGE + '''
+                                docker -H tcp://''' + host + ''':2375 stop ''' + env.BACKEND_IMAGE + ''' || true
+                                docker -H tcp://''' + host + ''':2375 rm ''' + env.BACKEND_IMAGE + ''' || true
+                                
+                                # Force remove any container using port 5000
+                                CONTAINER_ON_PORT=$(docker -H tcp://''' + host + ''':2375 ps -q --filter "publish=5000")
+                                if [ ! -z "$CONTAINER_ON_PORT" ]; then
+                                    docker -H tcp://''' + host + ''':2375 stop $CONTAINER_ON_PORT || true
+                                    docker -H tcp://''' + host + ''':2375 rm $CONTAINER_ON_PORT || true
+                                fi
+                                
+                                docker -H tcp://''' + host + ''':2375 run -d \
+                                    --name ''' + env.BACKEND_IMAGE + ''' \
                                     -p 5000:5000 \
                                     --network app \
-                                    -e MONGO_URI="${MONGO_URI}" \
-                                    -e ACCESS_TOKEN_SECRET="${ACCESS_TOKEN_SECRET}" \
-                                    ${REGISTRY}/${BACKEND_IMAGE}
-                            """
+                                    -e MONGO_URI="$MONGO_URI" \
+                                    -e ACCESS_TOKEN_SECRET="$ACCESS_TOKEN_SECRET" \
+                                    ''' + env.REGISTRY + '''/''' + env.BACKEND_IMAGE + '''
+                            '''
                         }
                     }
                 }
