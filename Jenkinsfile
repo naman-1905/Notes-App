@@ -26,6 +26,7 @@ pipeline {
         FRONTEND_PATH = "frontend/notes-app"
         BACKEND_PORT = "8000"
         FRONTEND_PORT = "3000"
+        NETWORK = "app"
     }
 
     stages {
@@ -110,34 +111,31 @@ pipeline {
                     ]) {
                         for (host in deployHosts) {
                             sh """
-                                echo "Cleaning up any containers using port ${BACKEND_PORT} on ${host}..."
+                                echo "Deploying Backend to ${host}:${BACKEND_PORT}..."
                                 
-                                # Find and stop any container using the backend port
-                                CONTAINER_ID=\$(docker -H tcp://${host}:2375 ps -q --filter "publish=${BACKEND_PORT}") || true
-                                if [ ! -z "\$CONTAINER_ID" ]; then
-                                    echo "Found container \$CONTAINER_ID using port ${BACKEND_PORT}, stopping it..."
-                                    docker -H tcp://${host}:2375 stop \$CONTAINER_ID || true
-                                    docker -H tcp://${host}:2375 rm \$CONTAINER_ID || true
-                                fi
+                                # Stop all containers using port ${BACKEND_PORT}
+                                docker -H tcp://${host}:2375 ps -a --format '{{.ID}} {{.Ports}}' | \
+                                    grep ':${BACKEND_PORT}->' | \
+                                    awk '{print \$1}' | \
+                                    xargs -r docker -H tcp://${host}:2375 rm -f || true
                                 
-                                # Also try to stop by name (in case it exists with a different port)
+                                # Stop by name as well
                                 docker -H tcp://${host}:2375 stop ${BACKEND_IMAGE} || true
                                 docker -H tcp://${host}:2375 rm ${BACKEND_IMAGE} || true
                                 
-                                # Pull the latest image
+                                # Pull and run
                                 docker -H tcp://${host}:2375 pull ${REGISTRY}/${BACKEND_IMAGE}
-                                
-                                # Run the new container
                                 docker -H tcp://${host}:2375 run -d \
                                     --name ${BACKEND_IMAGE} \
-                                    --network app \
+                                    --network ${NETWORK} \
+                                    --restart unless-stopped \
                                     -p ${BACKEND_PORT}:${BACKEND_PORT} \
                                     -e ACCESS_TOKEN_SECRET=\${TOKEN_SECRET} \
                                     -e PORT=${BACKEND_PORT} \
                                     -e MONGO_URI=\${MONGO_CONNECTION} \
                                     ${REGISTRY}/${BACKEND_IMAGE}
                                 
-                                echo "Backend deployed successfully on ${host}:${BACKEND_PORT}"
+                                echo "✓ Backend deployed on ${host}:${BACKEND_PORT}"
                             """
                         }
                     }
@@ -161,32 +159,29 @@ pipeline {
                     withCredentials([string(credentialsId: 'NEXT_PUBLIC_BASE_URL', variable: 'BASE_URL')]) {
                         for (host in deployHosts) {
                             sh """
-                                echo "Cleaning up any containers using port ${FRONTEND_PORT} on ${host}..."
+                                echo "Deploying Frontend to ${host}:${FRONTEND_PORT}..."
                                 
-                                # Find and stop any container using the frontend port
-                                CONTAINER_ID=\$(docker -H tcp://${host}:2375 ps -q --filter "publish=${FRONTEND_PORT}") || true
-                                if [ ! -z "\$CONTAINER_ID" ]; then
-                                    echo "Found container \$CONTAINER_ID using port ${FRONTEND_PORT}, stopping it..."
-                                    docker -H tcp://${host}:2375 stop \$CONTAINER_ID || true
-                                    docker -H tcp://${host}:2375 rm \$CONTAINER_ID || true
-                                fi
+                                # Stop all containers using port ${FRONTEND_PORT}
+                                docker -H tcp://${host}:2375 ps -a --format '{{.ID}} {{.Ports}}' | \
+                                    grep ':${FRONTEND_PORT}->' | \
+                                    awk '{print \$1}' | \
+                                    xargs -r docker -H tcp://${host}:2375 rm -f || true
                                 
-                                # Also try to stop by name
+                                # Stop by name as well
                                 docker -H tcp://${host}:2375 stop ${FRONTEND_IMAGE} || true
                                 docker -H tcp://${host}:2375 rm ${FRONTEND_IMAGE} || true
                                 
-                                # Pull the latest image
+                                # Pull and run
                                 docker -H tcp://${host}:2375 pull ${REGISTRY}/${FRONTEND_IMAGE}
-                                
-                                # Run the new container
                                 docker -H tcp://${host}:2375 run -d \
                                     --name ${FRONTEND_IMAGE} \
-                                    --network app \
+                                    --network ${NETWORK} \
+                                    --restart unless-stopped \
                                     -p ${FRONTEND_PORT}:${FRONTEND_PORT} \
                                     -e NEXT_PUBLIC_BASE_URL=\${BASE_URL} \
                                     ${REGISTRY}/${FRONTEND_IMAGE}
                                 
-                                echo "Frontend deployed successfully on ${host}:${FRONTEND_PORT}"
+                                echo "✓ Frontend deployed on ${host}:${FRONTEND_PORT}"
                             """
                         }
                     }
@@ -197,10 +192,14 @@ pipeline {
 
     post {
         success {
-            echo "Deployment completed successfully!"
+            echo "========================================="
+            echo "✓ Deployment completed successfully!"
+            echo "Backend: apinotes.halfskirmish.com"
+            echo "Frontend: notes.halfskirmish.com"
+            echo "========================================="
         }
         failure {
-            echo "Deployment failed. Please check the logs."
+            echo "✗ Deployment failed. Check the logs."
         }
         always {
             sh "docker system prune -f || true"
