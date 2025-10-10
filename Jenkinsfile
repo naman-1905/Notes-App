@@ -1,149 +1,94 @@
 pipeline {
     agent any
 
+    parameters {
+        choice(
+            name: 'APP_TO_BUILD',
+            choices: ['backend', 'frontend'],
+            description: 'Select which Notes App to build and deploy'
+        )
+        choice(
+            name: 'REGISTRY_OPTION',
+            choices: ['Kshitiz Container (10.243.4.236:5000)', 'Naman Container (registry.halfskirmish.com)'],
+            description: 'Select which registry to push the image to'
+        )
+        choice(
+            name: 'DEPLOY_HOST',
+            choices: ['10.243.4.236', '10.243.250.132', 'both'],
+            description: 'Select where to deploy the container'
+        )
+    }
+
     environment {
-        REGISTRY        = "10.243.4.236:5000"
-        DOCKER_HOST     = "tcp://10.243.250.132:2375"
-        APP_NETWORK     = "app"
-
-        // Backend app
-        BACKEND_NAME    = "notes-backend"
-        BACKEND_IMAGE   = "notes_backend"
-        BACKEND_TAG     = "latest"
-
-        // Frontend app
-        FRONTEND_NAME   = "notes-frontend"
-        FRONTEND_IMAGE  = "notes_frontend"
-        FRONTEND_TAG    = "latest"
+        BACKEND_IMAGE  = "notes_backend"
+        FRONTEND_IMAGE = "notes_frontend"
+        BACKEND_PATH   = "backend"
+        FRONTEND_PATH  = "frontend/notes-app"
+        APP_NETWORK    = "app"
     }
 
     stages {
 
-        /* ================================
-           Backend Build, Push, Deploy
-        ==================================*/
-        stage('Build Backend Image') {
+        stage('Set Registry') {
             steps {
-                dir('backend') {
-                    script {
-                        echo "Building Backend Docker Image..."
-                        sh "docker build -t ${BACKEND_IMAGE}:${BACKEND_TAG} ."
+                script {
+                    if (params.REGISTRY_OPTION == 'Kshitiz Container (10.243.4.236:5000)') {
+                        env.REGISTRY = "10.243.4.236:5000"
+                    } else {
+                        env.REGISTRY = "registry.halfskirmish.com"
                     }
                 }
             }
         }
 
-        stage('Push Backend Image') {
+        stage('Build Docker Image') {
             steps {
                 script {
-                    echo "Tagging and pushing backend image..."
-                    sh """
-                        docker tag ${BACKEND_IMAGE}:${BACKEND_TAG} ${REGISTRY}/${BACKEND_IMAGE}:${BACKEND_TAG}
-                        docker push ${REGISTRY}/${BACKEND_IMAGE}:${BACKEND_TAG}
-                    """
-                }
-            }
-        }
-
-        stage('Deploy Backend') {
-            steps {
-                script {
-                    echo "Deploying ${BACKEND_NAME} to remote Docker host..."
-
-                    // Create network if missing
-                    sh """
-                        docker -H ${DOCKER_HOST} network inspect ${APP_NETWORK} >/dev/null 2>&1 || \
-                        docker -H ${DOCKER_HOST} network create ${APP_NETWORK}
-                    """
-
-                    // Stop and remove old container
-                    sh """
-                        docker -H ${DOCKER_HOST} ps -q --filter name=${BACKEND_NAME} | grep -q . && \
-                        docker -H ${DOCKER_HOST} stop ${BACKEND_NAME} || true
-                    """
-                    sh """
-                        docker -H ${DOCKER_HOST} ps -aq --filter name=${BACKEND_NAME} | grep -q . && \
-                        docker -H ${DOCKER_HOST} rm ${BACKEND_NAME} || true
-                    """
-
-                    // Run new backend container
-                    sh """
-                        docker -H ${DOCKER_HOST} run -d --name ${BACKEND_NAME} \
-                        --network ${APP_NETWORK} \
-                        -p 8000:8000 \
-                        ${REGISTRY}/${BACKEND_IMAGE}:${BACKEND_TAG}
-                    """
-                }
-            }
-        }
-
-        /* ================================
-           Frontend Build, Push, Deploy
-        ==================================*/
-        stage('Build Frontend Image') {
-            steps {
-                dir('frontend/notes-app') {
-                    script {
-                        echo "Building Frontend Docker Image..."
-                        sh "docker build -t ${FRONTEND_IMAGE}:${FRONTEND_TAG} ."
+                    if (params.APP_TO_BUILD == 'backend') {
+                        env.IMAGE_NAME = env.BACKEND_IMAGE
+                        env.APP_PATH   = env.BACKEND_PATH
+                    } else {
+                        env.IMAGE_NAME = env.FRONTEND_IMAGE
+                        env.APP_PATH   = env.FRONTEND_PATH
                     }
-                }
-            }
-        }
 
-        stage('Push Frontend Image') {
-            steps {
-                script {
-                    echo "Tagging and pushing frontend image..."
+                    echo "Building Docker image for ${params.APP_TO_BUILD}..."
                     sh """
-                        docker tag ${FRONTEND_IMAGE}:${FRONTEND_TAG} ${REGISTRY}/${FRONTEND_IMAGE}:${FRONTEND_TAG}
-                        docker push ${REGISTRY}/${FRONTEND_IMAGE}:${FRONTEND_TAG}
+                        docker build -t \$IMAGE_NAME \$APP_PATH
+                        docker tag \$IMAGE_NAME \$REGISTRY/\$IMAGE_NAME
                     """
                 }
             }
         }
 
-        stage('Deploy Frontend') {
+        stage('Push Docker Image') {
             steps {
-                script {
-                    echo "Deploying ${FRONTEND_NAME} to remote Docker host..."
-
-                    // Create network if missing
-                    sh """
-                        docker -H ${DOCKER_HOST} network inspect ${APP_NETWORK} >/dev/null 2>&1 || \
-                        docker -H ${DOCKER_HOST} network create ${APP_NETWORK}
-                    """
-
-                    // Stop and remove old container
-                    sh """
-                        docker -H ${DOCKER_HOST} ps -q --filter name=${FRONTEND_NAME} | grep -q . && \
-                        docker -H ${DOCKER_HOST} stop ${FRONTEND_NAME} || true
-                    """
-                    sh """
-                        docker -H ${DOCKER_HOST} ps -aq --filter name=${FRONTEND_NAME} | grep -q . && \
-                        docker -H ${DOCKER_HOST} rm ${FRONTEND_NAME} || true
-                    """
-
-                    // Run new frontend container
-                    sh """
-                        docker -H ${DOCKER_HOST} run -d --name ${FRONTEND_NAME} \
-                        --network ${APP_NETWORK} \
-                        -p 3000:3000 \
-                        ${REGISTRY}/${FRONTEND_IMAGE}:${FRONTEND_TAG}
-                    """
-                }
+                echo "Pushing ${params.APP_TO_BUILD} image to ${REGISTRY}..."
+                sh "docker push \$REGISTRY/\$IMAGE_NAME"
             }
         }
 
-        /* ================================
-           Cleanup Local Docker Resources
-        ==================================*/
-        stage('Cleanup Local Docker Resources') {
+        stage('Deploy Container') {
             steps {
                 script {
-                    echo 'Cleaning up unused local Docker images and containers...'
-                    sh "docker image prune -f"
-                    sh "docker container prune -f"
+                    def deployHosts = []
+                    if (params.DEPLOY_HOST == 'both') {
+                        deployHosts = ['10.243.4.236', '10.243.250.132']
+                    } else {
+                        deployHosts = [params.DEPLOY_HOST]
+                    }
+
+                    for (host in deployHosts) {
+                        echo "Deploying ${params.APP_TO_BUILD} on $host..."
+                        sh """
+                            docker -H tcp://$host:2375 pull $REGISTRY/$IMAGE_NAME
+                            docker -H tcp://$host:2375 stop $IMAGE_NAME || true
+                            docker -H tcp://$host:2375 rm $IMAGE_NAME || true
+                            docker -H tcp://$host:2375 run -d --name $IMAGE_NAME --network $APP_NETWORK \
+                            ${params.APP_TO_BUILD == 'backend' ? '-p 8000:8000' : '-p 3000:3000'} \
+                            $REGISTRY/$IMAGE_NAME
+                        """
+                    }
                 }
             }
         }
