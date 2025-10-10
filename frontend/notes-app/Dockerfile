@@ -1,27 +1,40 @@
-# Use the official Node.js image
-FROM node:18-alpine
+FROM node:18-alpine AS builder
 
-# Set working directory inside container
-WORKDIR /app
+   WORKDIR /app
 
-# Copy package.json and package-lock.json
-COPY package*.json ./
+   # Copy package files
+   COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+   # Install dependencies
+   RUN npm ci
 
-# Copy the rest of the application code
-COPY . .
+   # Copy application files
+   COPY . .
 
-# Build argument for NEXT_PUBLIC_BASE_URL
-ARG NEXT_PUBLIC_BASE_URL
-ENV NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL}
+   # Build argument for environment variable
+   ARG NEXT_PUBLIC_BASE_URL
+   ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL
 
-# Build the Next.js app
-RUN npm run build
+   # Build the application
+   RUN npm run build
 
-# Expose the port Next.js runs on
-EXPOSE 3000
+   # Production stage
+   FROM node:18-alpine
 
-# Start the app
-CMD ["npm", "start"]
+   WORKDIR /app
+
+   # Copy package files and install production dependencies
+   COPY package*.json ./
+   RUN npm ci --only=production
+
+   # Copy built files from builder
+   COPY --from=builder /app/.next ./.next
+   COPY --from=builder /app/public ./public
+   COPY --from=builder /app/next.config.mjs ./
+   COPY --from=builder /app/package.json ./
+
+   # Expose port
+   EXPOSE 3000
+
+   # Start the application
+   CMD ["npm", "start"]
