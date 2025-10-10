@@ -28,6 +28,18 @@ pipeline {
     }
 
     stages {
+        stage('Check Registry Connection') {
+            steps {
+                script {
+                    echo 'Checking registry connectivity...'
+                    sh """
+                        curl -f http://${REGISTRY}/v2/_catalog || \
+                        (echo "ERROR: Cannot connect to registry at ${REGISTRY}" && exit 1)
+                    """
+                }
+            }
+        }
+
         stage('Build Frontend Docker Image') {
             when {
                 expression { params.BUILD_TARGET == 'frontend' || params.BUILD_TARGET == 'both' }
