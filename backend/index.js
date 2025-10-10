@@ -27,6 +27,15 @@ app.use(
   })
 );
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    timestamp: new Date(),
+    service: 'notes-app-backend'
+  });
+});
+
 app.get("/", (req, res) => {
   res.send({ data: "hello" });
 });
