@@ -4,7 +4,7 @@ pipeline {
     parameters {
         choice(
             name: 'APP_TO_BUILD',
-            choices: ['backend', 'frontend', 'both'],
+            choices: ['frontend', 'backend', 'both'],
             description: 'Select which app to build and deploy'
         )
         choice(
@@ -20,13 +20,10 @@ pipeline {
     }
 
     environment {
-        BACKEND_IMAGE = "notes-app-backend"
-        FRONTEND_IMAGE = "notes-app-frontend"
-        BACKEND_PATH = "backend"
+        FRONTEND_IMAGE = "notes_frontend"
+        BACKEND_IMAGE = "notes_backend"
         FRONTEND_PATH = "frontend/notes-app"
-        BACKEND_PORT = "8000"
-        FRONTEND_PORT = "3000"
-        NETWORK = "app"
+        BACKEND_PATH = "backend"
     }
 
     stages {
@@ -42,7 +39,26 @@ pipeline {
             }
         }
 
-        stage('Build Backend Docker Image') {
+        stage('Build Frontend') {
+            when {
+                expression { params.APP_TO_BUILD == 'frontend' || params.APP_TO_BUILD == 'both' }
+            }
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'NEXT_PUBLIC_BASE_URL', variable: 'NEXT_PUBLIC_BASE_URL')]) {
+                        sh """
+                            docker build \
+                                --build-arg NEXT_PUBLIC_BASE_URL=${NEXT_PUBLIC_BASE_URL} \
+                                -t ${FRONTEND_IMAGE} \
+                                ${FRONTEND_PATH}
+                            docker tag ${FRONTEND_IMAGE} ${REGISTRY}/${FRONTEND_IMAGE}
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Build Backend') {
             when {
                 expression { params.APP_TO_BUILD == 'backend' || params.APP_TO_BUILD == 'both' }
             }
@@ -56,21 +72,12 @@ pipeline {
             }
         }
 
-        stage('Build Frontend Docker Image') {
+        stage('Push Frontend Image') {
             when {
                 expression { params.APP_TO_BUILD == 'frontend' || params.APP_TO_BUILD == 'both' }
             }
             steps {
-                script {
-                    withCredentials([string(credentialsId: 'NEXT_PUBLIC_BASE_URL', variable: 'BASE_URL')]) {
-                        sh """
-                            docker build \
-                                --build-arg NEXT_PUBLIC_BASE_URL=\${BASE_URL} \
-                                -t ${FRONTEND_IMAGE} ${FRONTEND_PATH}
-                            docker tag ${FRONTEND_IMAGE} ${REGISTRY}/${FRONTEND_IMAGE}
-                        """
-                    }
-                }
+                sh "docker push ${REGISTRY}/${FRONTEND_IMAGE}"
             }
         }
 
@@ -83,16 +90,32 @@ pipeline {
             }
         }
 
-        stage('Push Frontend Image') {
+        stage('Deploy Frontend') {
             when {
                 expression { params.APP_TO_BUILD == 'frontend' || params.APP_TO_BUILD == 'both' }
             }
             steps {
-                sh "docker push ${REGISTRY}/${FRONTEND_IMAGE}"
+                script {
+                    def deployHosts = []
+                    if (params.DEPLOY_HOST == 'both') {
+                        deployHosts = ['10.243.4.236', '10.243.250.132']
+                    } else {
+                        deployHosts = [params.DEPLOY_HOST]
+                    }
+
+                    for (host in deployHosts) {
+                        sh """
+                            docker -H tcp://${host}:2375 pull ${REGISTRY}/${FRONTEND_IMAGE}
+                            docker -H tcp://${host}:2375 stop ${FRONTEND_IMAGE} || true
+                            docker -H tcp://${host}:2375 rm ${FRONTEND_IMAGE} || true
+                            docker -H tcp://${host}:2375 run -d --name ${FRONTEND_IMAGE} -p 3000:3000 --network app ${REGISTRY}/${FRONTEND_IMAGE}
+                        """
+                    }
+                }
             }
         }
 
-        stage('Deploy Backend Container') {
+        stage('Deploy Backend') {
             when {
                 expression { params.APP_TO_BUILD == 'backend' || params.APP_TO_BUILD == 'both' }
             }
@@ -106,79 +129,21 @@ pipeline {
                     }
 
                     withCredentials([
-                        string(credentialsId: 'ACCESS_TOKEN_SECRET', variable: 'TOKEN_SECRET'),
-                        string(credentialsId: 'MONGO_URI', variable: 'MONGO_CONNECTION')
+                        string(credentialsId: 'MONGO_URI', variable: 'MONGO_URI'),
+                        string(credentialsId: 'ACCESS_TOKEN_SECRET', variable: 'ACCESS_TOKEN_SECRET')
                     ]) {
                         for (host in deployHosts) {
                             sh """
-                                echo "Deploying Backend to ${host}..."
-                                
-                                # Pull latest image
                                 docker -H tcp://${host}:2375 pull ${REGISTRY}/${BACKEND_IMAGE}
-                                
-                                # Stop and remove existing container
                                 docker -H tcp://${host}:2375 stop ${BACKEND_IMAGE} || true
                                 docker -H tcp://${host}:2375 rm ${BACKEND_IMAGE} || true
-                                
-                                # Run new container (internal network only, like Expense Tracker)
                                 docker -H tcp://${host}:2375 run -d \
                                     --name ${BACKEND_IMAGE} \
-                                    --network ${NETWORK} \
-                                    --restart unless-stopped \
-                                    -e ACCESS_TOKEN_SECRET="\${TOKEN_SECRET}" \
-                                    -e PORT=${BACKEND_PORT} \
-                                    -e MONGO_URI="\${MONGO_CONNECTION}" \
+                                    -p 5000:5000 \
+                                    --network app \
+                                    -e MONGO_URI="${MONGO_URI}" \
+                                    -e ACCESS_TOKEN_SECRET="${ACCESS_TOKEN_SECRET}" \
                                     ${REGISTRY}/${BACKEND_IMAGE}
-                                
-                                echo "✓ Backend deployed on ${host} (internal network only)"
-                                
-                                # Verify container is running
-                                docker -H tcp://${host}:2375 ps --filter "name=${BACKEND_IMAGE}" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-                            """
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Deploy Frontend Container') {
-            when {
-                expression { params.APP_TO_BUILD == 'frontend' || params.APP_TO_BUILD == 'both' }
-            }
-            steps {
-                script {
-                    def deployHosts = []
-                    if (params.DEPLOY_HOST == 'both') {
-                        deployHosts = ['10.243.4.236', '10.243.250.132']
-                    } else {
-                        deployHosts = [params.DEPLOY_HOST]
-                    }
-
-                    withCredentials([string(credentialsId: 'NEXT_PUBLIC_BASE_URL', variable: 'BASE_URL')]) {
-                        for (host in deployHosts) {
-                            sh """
-                                echo "Deploying Frontend to ${host}:${FRONTEND_PORT}..."
-                                
-                                # Pull latest image
-                                docker -H tcp://${host}:2375 pull ${REGISTRY}/${FRONTEND_IMAGE}
-                                
-                                # Stop and remove existing container
-                                docker -H tcp://${host}:2375 stop ${FRONTEND_IMAGE} || true
-                                docker -H tcp://${host}:2375 rm ${FRONTEND_IMAGE} || true
-                                
-                                # Run new container (exposed port for external access)
-                                docker -H tcp://${host}:2375 run -d \
-                                    --name ${FRONTEND_IMAGE} \
-                                    --network ${NETWORK} \
-                                    --restart unless-stopped \
-                                    -p ${FRONTEND_PORT}:${FRONTEND_PORT} \
-                                    -e NEXT_PUBLIC_BASE_URL="\${BASE_URL}" \
-                                    ${REGISTRY}/${FRONTEND_IMAGE}
-                                
-                                echo "✓ Frontend deployed on ${host}:${FRONTEND_PORT}"
-                                
-                                # Verify container is running
-                                docker -H tcp://${host}:2375 ps --filter "name=${FRONTEND_IMAGE}" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
                             """
                         }
                     }
@@ -188,16 +153,8 @@ pipeline {
     }
 
     post {
-        success {
-            echo "========================================="
-            echo "✓ Deployment completed successfully!"
-            echo "========================================="
-        }
-        failure {
-            echo "✗ Deployment failed. Check the logs."
-        }
         always {
-            sh "docker system prune -f || true"
+            cleanWs()
         }
     }
 }

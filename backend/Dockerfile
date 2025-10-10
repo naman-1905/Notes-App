@@ -1,18 +1,30 @@
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy application files
+COPY . .
+
+# Production stage
 FROM node:18-alpine
 
-   WORKDIR /app
+WORKDIR /app
 
-   # Copy package files
-   COPY package*.json ./
+# Copy package files and install production dependencies
+COPY package*.json ./
+RUN npm ci --only=production
 
-   # Install dependencies
-   RUN npm ci --only=production
+# Copy application files from builder
+COPY --from=builder /app/ ./
 
-   # Copy application files
-   COPY . .
+ENV PORT=5000
 
-   # Expose port
-   EXPOSE 5000
+EXPOSE 5000
 
-   # Start the application
-   CMD ["node", "index.js"]
+CMD ["node", "index.js"]

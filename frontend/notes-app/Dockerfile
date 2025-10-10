@@ -1,40 +1,40 @@
 FROM node:18-alpine AS builder
 
-   WORKDIR /app
+WORKDIR /app
 
-   # Copy package files
-   COPY package*.json ./
+# Copy package files
+COPY package*.json ./
 
-   # Install dependencies
-   RUN npm ci
+# Install dependencies
+RUN npm ci
 
-   # Copy application files
-   COPY . .
+# Copy application files
+COPY . .
 
-   # Build argument for environment variable
-   ARG NEXT_PUBLIC_BASE_URL
-   ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL
+# Build argument for environment variable
+ARG NEXT_PUBLIC_BASE_URL
+ENV NEXT_PUBLIC_BASE_URL=$NEXT_PUBLIC_BASE_URL
 
-   # Build the application
-   RUN npm run build
+# Build the application
+RUN npm run build
 
-   # Production stage
-   FROM node:18-alpine
+# Production stage
+FROM node:18-alpine
 
-   WORKDIR /app
+WORKDIR /app
 
-   # Copy package files and install production dependencies
-   COPY package*.json ./
-   RUN npm ci --only=production
+# Copy package files and install production dependencies
+COPY package*.json ./
+RUN npm ci --only=production
 
-   # Copy built files from builder
-   COPY --from=builder /app/.next ./.next
-   COPY --from=builder /app/public ./public
-   COPY --from=builder /app/next.config.mjs ./
-   COPY --from=builder /app/package.json ./
+# Copy built files from builder
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/next.config.mjs ./
+COPY --from=builder /app/package.json ./
 
-   # Expose port
-   EXPOSE 3000
+# Expose port
+EXPOSE 3000
 
-   # Start the application
-   CMD ["npm", "start"]
+# Start the application
+CMD ["npm", "start"]
