@@ -105,46 +105,78 @@ pipeline {
                     for (host in deployHosts) {
                         if (params.APP_TO_BUILD == 'backend' || params.APP_TO_BUILD == 'both') {
                             sh """
-                                echo "Cleaning up port ${BACKEND_PORT} on ${host}..."
+                                echo "========================================="
+                                echo "Cleaning up backend port ${BACKEND_PORT} on ${host}..."
+                                echo "========================================="
                                 
-                                # Find and stop all containers using backend port
-                                BACKEND_CONTAINERS=\$(docker -H tcp://${host}:2375 ps -q --filter "publish=${BACKEND_PORT}" 2>/dev/null || true)
+                                # Stop and remove by name first
+                                docker -H tcp://${host}:2375 stop ${BACKEND_IMAGE} 2>/dev/null || true
+                                docker -H tcp://${host}:2375 rm -f ${BACKEND_IMAGE} 2>/dev/null || true
+                                
+                                # Find all containers using the port (running or stopped)
+                                BACKEND_CONTAINERS=\$(docker -H tcp://${host}:2375 ps -aq --filter "publish=${BACKEND_PORT}" 2>/dev/null || true)
                                 if [ -n "\$BACKEND_CONTAINERS" ]; then
-                                    echo "Stopping containers using port ${BACKEND_PORT}: \$BACKEND_CONTAINERS"
-                                    docker -H tcp://${host}:2375 stop \$BACKEND_CONTAINERS || true
-                                    docker -H tcp://${host}:2375 rm \$BACKEND_CONTAINERS || true
+                                    echo "Found containers using port ${BACKEND_PORT}: \$BACKEND_CONTAINERS"
+                                    docker -H tcp://${host}:2375 stop \$BACKEND_CONTAINERS 2>/dev/null || true
+                                    docker -H tcp://${host}:2375 rm -f \$BACKEND_CONTAINERS 2>/dev/null || true
                                 fi
                                 
-                                # Also cleanup by name
-                                docker -H tcp://${host}:2375 stop ${BACKEND_IMAGE} 2>/dev/null || true
-                                docker -H tcp://${host}:2375 rm ${BACKEND_IMAGE} 2>/dev/null || true
+                                # Nuclear option: find any container with backend port in ports list
+                                ALL_CONTAINERS=\$(docker -H tcp://${host}:2375 ps -a --format '{{.ID}} {{.Ports}}' | grep ':${BACKEND_PORT}->' | awk '{print \$1}' || true)
+                                if [ -n "\$ALL_CONTAINERS" ]; then
+                                    echo "Force removing containers with port ${BACKEND_PORT} binding: \$ALL_CONTAINERS"
+                                    for container in \$ALL_CONTAINERS; do
+                                        docker -H tcp://${host}:2375 stop \$container 2>/dev/null || true
+                                        docker -H tcp://${host}:2375 rm -f \$container 2>/dev/null || true
+                                    done
+                                fi
                                 
-                                echo "✓ Port ${BACKEND_PORT} cleaned up on ${host}"
+                                # List what's still running
+                                echo "Current containers:"
+                                docker -H tcp://${host}:2375 ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(NAMES|${BACKEND_PORT}|${BACKEND_IMAGE})" || echo "No backend containers found"
+                                
+                                echo "✓ Backend port ${BACKEND_PORT} cleanup completed on ${host}"
                             """
                         }
                         
                         if (params.APP_TO_BUILD == 'frontend' || params.APP_TO_BUILD == 'both') {
                             sh """
-                                echo "Cleaning up port ${FRONTEND_PORT} on ${host}..."
+                                echo "========================================="
+                                echo "Cleaning up frontend port ${FRONTEND_PORT} on ${host}..."
+                                echo "========================================="
                                 
-                                # Find and stop all containers using frontend port
-                                FRONTEND_CONTAINERS=\$(docker -H tcp://${host}:2375 ps -q --filter "publish=${FRONTEND_PORT}" 2>/dev/null || true)
+                                # Stop and remove by name first
+                                docker -H tcp://${host}:2375 stop ${FRONTEND_IMAGE} 2>/dev/null || true
+                                docker -H tcp://${host}:2375 rm -f ${FRONTEND_IMAGE} 2>/dev/null || true
+                                
+                                # Find all containers using the port (running or stopped)
+                                FRONTEND_CONTAINERS=\$(docker -H tcp://${host}:2375 ps -aq --filter "publish=${FRONTEND_PORT}" 2>/dev/null || true)
                                 if [ -n "\$FRONTEND_CONTAINERS" ]; then
-                                    echo "Stopping containers using port ${FRONTEND_PORT}: \$FRONTEND_CONTAINERS"
-                                    docker -H tcp://${host}:2375 stop \$FRONTEND_CONTAINERS || true
-                                    docker -H tcp://${host}:2375 rm \$FRONTEND_CONTAINERS || true
+                                    echo "Found containers using port ${FRONTEND_PORT}: \$FRONTEND_CONTAINERS"
+                                    docker -H tcp://${host}:2375 stop \$FRONTEND_CONTAINERS 2>/dev/null || true
+                                    docker -H tcp://${host}:2375 rm -f \$FRONTEND_CONTAINERS 2>/dev/null || true
                                 fi
                                 
-                                # Also cleanup by name
-                                docker -H tcp://${host}:2375 stop ${FRONTEND_IMAGE} 2>/dev/null || true
-                                docker -H tcp://${host}:2375 rm ${FRONTEND_IMAGE} 2>/dev/null || true
+                                # Nuclear option: find any container with frontend port in ports list
+                                ALL_CONTAINERS=\$(docker -H tcp://${host}:2375 ps -a --format '{{.ID}} {{.Ports}}' | grep ':${FRONTEND_PORT}->' | awk '{print \$1}' || true)
+                                if [ -n "\$ALL_CONTAINERS" ]; then
+                                    echo "Force removing containers with port ${FRONTEND_PORT} binding: \$ALL_CONTAINERS"
+                                    for container in \$ALL_CONTAINERS; do
+                                        docker -H tcp://${host}:2375 stop \$container 2>/dev/null || true
+                                        docker -H tcp://${host}:2375 rm -f \$container 2>/dev/null || true
+                                    done
+                                fi
                                 
-                                echo "✓ Port ${FRONTEND_PORT} cleaned up on ${host}"
+                                # List what's still running
+                                echo "Current containers:"
+                                docker -H tcp://${host}:2375 ps -a --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(NAMES|${FRONTEND_PORT}|${FRONTEND_IMAGE})" || echo "No frontend containers found"
+                                
+                                echo "✓ Frontend port ${FRONTEND_PORT} cleanup completed on ${host}"
                             """
                         }
                         
                         // Wait for ports to be fully released
-                        sh "sleep 3"
+                        sh "sleep 5"
                     }
                 }
             }
@@ -242,6 +274,9 @@ pipeline {
         success {
             echo "========================================="
             echo "✓ Deployment completed successfully!"
+            echo "Backend: apinotes.halfskirmish.com"
+            echo "Frontend: notes.halfskirmish.com"
+            echo "========================================="
         }
         failure {
             echo "✗ Deployment failed. Check the logs."
