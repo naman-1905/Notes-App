@@ -274,8 +274,6 @@ pipeline {
         success {
             echo "========================================="
             echo "✓ Deployment completed successfully!"
-            echo "Backend: apinotes.halfskirmish.com"
-            echo "Frontend: notes.halfskirmish.com"
             echo "========================================="
         }
         failure {
