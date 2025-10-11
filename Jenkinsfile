@@ -116,7 +116,6 @@ pipeline {
                                 docker -H tcp://${host}:2375 run -d \
                                     --name ${BACKEND_IMAGE} \
                                     --network app \
-                                    -p ${BACKEND_PORT}:${BACKEND_PORT} \
                                     -e ACCESS_TOKEN_SECRET=\${TOKEN_SECRET} \
                                     -e PORT=${BACKEND_PORT} \
                                     -e MONGO_URI=\${MONGO_CONNECTION} \
@@ -150,7 +149,6 @@ pipeline {
                                 docker -H tcp://${host}:2375 run -d \
                                     --name ${FRONTEND_IMAGE} \
                                     --network app \
-                                    -p ${FRONTEND_PORT}:${FRONTEND_PORT} \
                                     -e NEXT_PUBLIC_BASE_URL=\${BASE_URL} \
                                     ${REGISTRY}/${FRONTEND_IMAGE}
                             """
