@@ -9,12 +9,12 @@ pipeline {
         )
         choice(
             name: 'REGISTRY_OPTION',
-            choices: ['Kshitiz Container (10.243.4.236:5000)', 'Naman Container (registry.halfskirmish.com)'],
+            choices: ['Kshitiz Container (100.94.112.9:5000)', 'Naman Container (100.121.35.107)'],
             description: 'Select which registry to push the image to'
         )
         choice(
             name: 'DEPLOY_HOST',
-            choices: ['10.243.4.236', '10.243.250.132', 'both'],
+            choices: ['100.94.112.9', '100.121.35.107', 'both'],
             description: 'Select where to deploy the container'
         )
     }
@@ -32,8 +32,8 @@ pipeline {
         stage('Set Registry') {
             steps {
                 script {
-                    if (params.REGISTRY_OPTION == 'Kshitiz Container (10.243.4.236:5000)') {
-                        env.REGISTRY = "10.243.4.236:5000"
+                    if (params.REGISTRY_OPTION == 'Kshitiz Container (100.94.112.9:5000)') {
+                        env.REGISTRY = "100.94.112.9:5000"
                     } else {
                         env.REGISTRY = "registry.halfskirmish.com"
                     }
@@ -99,7 +99,7 @@ pipeline {
                 script {
                     def deployHosts = []
                     if (params.DEPLOY_HOST == 'both') {
-                        deployHosts = ['10.243.4.236', '10.243.250.132']
+                        deployHosts = ['100.94.112.9', '100.121.35.107']
                     } else {
                         deployHosts = [params.DEPLOY_HOST]
                     }
@@ -135,7 +135,7 @@ pipeline {
                 script {
                     def deployHosts = []
                     if (params.DEPLOY_HOST == 'both') {
-                        deployHosts = ['10.243.4.236', '10.243.250.132']
+                        deployHosts = ['100.94.112.9', '100.121.35.107']
                     } else {
                         deployHosts = [params.DEPLOY_HOST]
                     }
