@@ -71,10 +71,10 @@ pipeline {
                 script {
                     echo "Logging into Docker registries..."
                     withCredentials([usernamePassword(credentialsId: 'docker_creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        sh """
-                            echo "$DOCKER_PASS" | docker login ${BUILD_REGISTRY} -u "$DOCKER_USER" --password-stdin
-                            echo "$DOCKER_PASS" | docker login ${DEPLOY_REGISTRY} -u "$DOCKER_USER" --password-stdin
-                        """
+                        sh '''
+                            echo "$DOCKER_PASS" | docker login ''' + BUILD_REGISTRY + ''' -u "$DOCKER_USER" --password-stdin
+                            echo "$DOCKER_PASS" | docker login ''' + DEPLOY_REGISTRY + ''' -u "$DOCKER_USER" --password-stdin
+                        '''
                     }
 
                     if (params.APP_TO_BUILD == 'backend' || params.APP_TO_BUILD == 'both') {
@@ -136,21 +136,21 @@ pipeline {
                                 string(credentialsId: 'ACCESS_TOKEN_SECRET', variable: 'TOKEN_SECRET'),
                                 string(credentialsId: 'MONGO_URI', variable: 'MONGO_CONNECTION')
                             ]) {
-                                sh """
-                                    echo "$DOCKER_PASS" | DOCKER_HOST=${KAHITOZ_DOCKER_HOST} docker login ${DEPLOY_REGISTRY} -u "$DOCKER_USER" --password-stdin
-                                    DOCKER_HOST=${KAHITOZ_DOCKER_HOST} docker stop ${BACKEND_CONTAINER_NAME} || true
-                                    DOCKER_HOST=${KAHITOZ_DOCKER_HOST} docker rm ${BACKEND_CONTAINER_NAME} || true
-                                    DOCKER_HOST=${KAHITOZ_DOCKER_HOST} docker pull ${DEPLOY_REGISTRY}/${BACKEND_IMAGE_NAME}:${IMAGE_TAG}
-                                    DOCKER_HOST=${KAHITOZ_DOCKER_HOST} docker run -d \\
-                                        --name ${BACKEND_CONTAINER_NAME} \\
-                                        --network ${NETWORK_NAME} \\
-                                        --restart always \\
-                                        -e ACCESS_TOKEN_SECRET=${TOKEN_SECRET} \\
-                                        -e PORT=5000 \\
-                                        -e MONGO_URI=${MONGO_CONNECTION} \\
-                                        ${DEPLOY_REGISTRY}/${BACKEND_IMAGE_NAME}:${IMAGE_TAG}
-                                    DOCKER_HOST=${KAHITOZ_DOCKER_HOST} docker logout ${DEPLOY_REGISTRY} || true
-                                """
+                                sh '''
+                                    echo "$DOCKER_PASS" | DOCKER_HOST=''' + KAHITOZ_DOCKER_HOST + ''' docker login ''' + DEPLOY_REGISTRY + ''' -u "$DOCKER_USER" --password-stdin
+                                    DOCKER_HOST=''' + KAHITOZ_DOCKER_HOST + ''' docker stop ''' + BACKEND_CONTAINER_NAME + ''' || true
+                                    DOCKER_HOST=''' + KAHITOZ_DOCKER_HOST + ''' docker rm ''' + BACKEND_CONTAINER_NAME + ''' || true
+                                    DOCKER_HOST=''' + KAHITOZ_DOCKER_HOST + ''' docker pull ''' + DEPLOY_REGISTRY + '''/''' + BACKEND_IMAGE_NAME + ''':''' + IMAGE_TAG + '''
+                                    DOCKER_HOST=''' + KAHITOZ_DOCKER_HOST + ''' docker run -d \
+                                        --name ''' + BACKEND_CONTAINER_NAME + ''' \
+                                        --network ''' + NETWORK_NAME + ''' \
+                                        --restart always \
+                                        -e ACCESS_TOKEN_SECRET="$TOKEN_SECRET" \
+                                        -e PORT=5000 \
+                                        -e MONGO_URI="$MONGO_CONNECTION" \
+                                        ''' + DEPLOY_REGISTRY + '''/''' + BACKEND_IMAGE_NAME + ''':''' + IMAGE_TAG + '''
+                                    DOCKER_HOST=''' + KAHITOZ_DOCKER_HOST + ''' docker logout ''' + DEPLOY_REGISTRY + ''' || true
+                                '''
                             }
                         }
                     }
@@ -177,21 +177,21 @@ pipeline {
                                 string(credentialsId: 'ACCESS_TOKEN_SECRET', variable: 'TOKEN_SECRET'),
                                 string(credentialsId: 'MONGO_URI', variable: 'MONGO_CONNECTION')
                             ]) {
-                                sh """
-                                    echo "$DOCKER_PASS" | DOCKER_HOST=${NAMAN_DOCKER_HOST} docker login ${DEPLOY_REGISTRY} -u "$DOCKER_USER" --password-stdin
-                                    DOCKER_HOST=${NAMAN_DOCKER_HOST} docker stop ${BACKEND_CONTAINER_NAME} || true
-                                    DOCKER_HOST=${NAMAN_DOCKER_HOST} docker rm ${BACKEND_CONTAINER_NAME} || true
-                                    DOCKER_HOST=${NAMAN_DOCKER_HOST} docker pull ${DEPLOY_REGISTRY}/${BACKEND_IMAGE_NAME}:${IMAGE_TAG}
-                                    DOCKER_HOST=${NAMAN_DOCKER_HOST} docker run -d \\
-                                        --name ${BACKEND_CONTAINER_NAME} \\
-                                        --network ${NETWORK_NAME} \\
-                                        --restart always \\
-                                        -e ACCESS_TOKEN_SECRET=${TOKEN_SECRET} \\
-                                        -e PORT=5000 \\
-                                        -e MONGO_URI=${MONGO_CONNECTION} \\
-                                        ${DEPLOY_REGISTRY}/${BACKEND_IMAGE_NAME}:${IMAGE_TAG}
-                                    DOCKER_HOST=${NAMAN_DOCKER_HOST} docker logout ${DEPLOY_REGISTRY} || true
-                                """
+                                sh '''
+                                    echo "$DOCKER_PASS" | DOCKER_HOST=''' + NAMAN_DOCKER_HOST + ''' docker login ''' + DEPLOY_REGISTRY + ''' -u "$DOCKER_USER" --password-stdin
+                                    DOCKER_HOST=''' + NAMAN_DOCKER_HOST + ''' docker stop ''' + BACKEND_CONTAINER_NAME + ''' || true
+                                    DOCKER_HOST=''' + NAMAN_DOCKER_HOST + ''' docker rm ''' + BACKEND_CONTAINER_NAME + ''' || true
+                                    DOCKER_HOST=''' + NAMAN_DOCKER_HOST + ''' docker pull ''' + DEPLOY_REGISTRY + '''/''' + BACKEND_IMAGE_NAME + ''':''' + IMAGE_TAG + '''
+                                    DOCKER_HOST=''' + NAMAN_DOCKER_HOST + ''' docker run -d \
+                                        --name ''' + BACKEND_CONTAINER_NAME + ''' \
+                                        --network ''' + NETWORK_NAME + ''' \
+                                        --restart always \
+                                        -e ACCESS_TOKEN_SECRET="$TOKEN_SECRET" \
+                                        -e PORT=5000 \
+                                        -e MONGO_URI="$MONGO_CONNECTION" \
+                                        ''' + DEPLOY_REGISTRY + '''/''' + BACKEND_IMAGE_NAME + ''':''' + IMAGE_TAG + '''
+                                    DOCKER_HOST=''' + NAMAN_DOCKER_HOST + ''' docker logout ''' + DEPLOY_REGISTRY + ''' || true
+                                '''
                             }
                         }
                     }
@@ -217,19 +217,19 @@ pipeline {
                                 usernamePassword(credentialsId: 'docker_creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS'),
                                 string(credentialsId: 'NEXT_PUBLIC_BASE_URL', variable: 'BASE_URL')
                             ]) {
-                                sh """
-                                    echo "$DOCKER_PASS" | DOCKER_HOST=${KAHITOZ_DOCKER_HOST} docker login ${DEPLOY_REGISTRY} -u "$DOCKER_USER" --password-stdin
-                                    DOCKER_HOST=${KAHITOZ_DOCKER_HOST} docker stop ${FRONTEND_CONTAINER_NAME} || true
-                                    DOCKER_HOST=${KAHITOZ_DOCKER_HOST} docker rm ${FRONTEND_CONTAINER_NAME} || true
-                                    DOCKER_HOST=${KAHITOZ_DOCKER_HOST} docker pull ${DEPLOY_REGISTRY}/${FRONTEND_IMAGE_NAME}:${IMAGE_TAG}
-                                    DOCKER_HOST=${KAHITOZ_DOCKER_HOST} docker run -d \\
-                                        --name ${FRONTEND_CONTAINER_NAME} \\
-                                        --network ${NETWORK_NAME} \\
-                                        --restart always \\
-                                        -e NEXT_PUBLIC_BASE_URL=${BASE_URL} \\
-                                        ${DEPLOY_REGISTRY}/${FRONTEND_IMAGE_NAME}:${IMAGE_TAG}
-                                    DOCKER_HOST=${KAHITOZ_DOCKER_HOST} docker logout ${DEPLOY_REGISTRY} || true
-                                """
+                                sh '''
+                                    echo "$DOCKER_PASS" | DOCKER_HOST=''' + KAHITOZ_DOCKER_HOST + ''' docker login ''' + DEPLOY_REGISTRY + ''' -u "$DOCKER_USER" --password-stdin
+                                    DOCKER_HOST=''' + KAHITOZ_DOCKER_HOST + ''' docker stop ''' + FRONTEND_CONTAINER_NAME + ''' || true
+                                    DOCKER_HOST=''' + KAHITOZ_DOCKER_HOST + ''' docker rm ''' + FRONTEND_CONTAINER_NAME + ''' || true
+                                    DOCKER_HOST=''' + KAHITOZ_DOCKER_HOST + ''' docker pull ''' + DEPLOY_REGISTRY + '''/''' + FRONTEND_IMAGE_NAME + ''':''' + IMAGE_TAG + '''
+                                    DOCKER_HOST=''' + KAHITOZ_DOCKER_HOST + ''' docker run -d \
+                                        --name ''' + FRONTEND_CONTAINER_NAME + ''' \
+                                        --network ''' + NETWORK_NAME + ''' \
+                                        --restart always \
+                                        -e NEXT_PUBLIC_BASE_URL="$BASE_URL" \
+                                        ''' + DEPLOY_REGISTRY + '''/''' + FRONTEND_IMAGE_NAME + ''':''' + IMAGE_TAG + '''
+                                    DOCKER_HOST=''' + KAHITOZ_DOCKER_HOST + ''' docker logout ''' + DEPLOY_REGISTRY + ''' || true
+                                '''
                             }
                         }
                     }
@@ -255,19 +255,19 @@ pipeline {
                                 usernamePassword(credentialsId: 'docker_creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS'),
                                 string(credentialsId: 'NEXT_PUBLIC_BASE_URL', variable: 'BASE_URL')
                             ]) {
-                                sh """
-                                    echo "$DOCKER_PASS" | DOCKER_HOST=${NAMAN_DOCKER_HOST} docker login ${DEPLOY_REGISTRY} -u "$DOCKER_USER" --password-stdin
-                                    DOCKER_HOST=${NAMAN_DOCKER_HOST} docker stop ${FRONTEND_CONTAINER_NAME} || true
-                                    DOCKER_HOST=${NAMAN_DOCKER_HOST} docker rm ${FRONTEND_CONTAINER_NAME} || true
-                                    DOCKER_HOST=${NAMAN_DOCKER_HOST} docker pull ${DEPLOY_REGISTRY}/${FRONTEND_IMAGE_NAME}:${IMAGE_TAG}
-                                    DOCKER_HOST=${NAMAN_DOCKER_HOST} docker run -d \\
-                                        --name ${FRONTEND_CONTAINER_NAME} \\
-                                        --network ${NETWORK_NAME} \\
-                                        --restart always \\
-                                        -e NEXT_PUBLIC_BASE_URL=${BASE_URL} \\
-                                        ${DEPLOY_REGISTRY}/${FRONTEND_IMAGE_NAME}:${IMAGE_TAG}
-                                    DOCKER_HOST=${NAMAN_DOCKER_HOST} docker logout ${DEPLOY_REGISTRY} || true
-                                """
+                                sh '''
+                                    echo "$DOCKER_PASS" | DOCKER_HOST=''' + NAMAN_DOCKER_HOST + ''' docker login ''' + DEPLOY_REGISTRY + ''' -u "$DOCKER_USER" --password-stdin
+                                    DOCKER_HOST=''' + NAMAN_DOCKER_HOST + ''' docker stop ''' + FRONTEND_CONTAINER_NAME + ''' || true
+                                    DOCKER_HOST=''' + NAMAN_DOCKER_HOST + ''' docker rm ''' + FRONTEND_CONTAINER_NAME + ''' || true
+                                    DOCKER_HOST=''' + NAMAN_DOCKER_HOST + ''' docker pull ''' + DEPLOY_REGISTRY + '''/''' + FRONTEND_IMAGE_NAME + ''':''' + IMAGE_TAG + '''
+                                    DOCKER_HOST=''' + NAMAN_DOCKER_HOST + ''' docker run -d \
+                                        --name ''' + FRONTEND_CONTAINER_NAME + ''' \
+                                        --network ''' + NETWORK_NAME + ''' \
+                                        --restart always \
+                                        -e NEXT_PUBLIC_BASE_URL="$BASE_URL" \
+                                        ''' + DEPLOY_REGISTRY + '''/''' + FRONTEND_IMAGE_NAME + ''':''' + IMAGE_TAG + '''
+                                    DOCKER_HOST=''' + NAMAN_DOCKER_HOST + ''' docker logout ''' + DEPLOY_REGISTRY + ''' || true
+                                '''
                             }
                         }
                     }
